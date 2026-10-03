@@ -1,1 +1,1 @@
-# qiskit-fall-fest-2026
+# Q-tastrophe
