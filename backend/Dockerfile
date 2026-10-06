@@ -7,7 +7,7 @@ WORKDIR /app/backend
 COPY requirements.txt .
 
 # Install dependencies (this layer gets cached unless requirements.txt changes!)
-RUN pip install --no-cache-dir -r requirements.txt && pip install "uvicorn[standard]"
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Switch back to the parent directory so module imports like `from backend.models` work perfectly
 WORKDIR /app
