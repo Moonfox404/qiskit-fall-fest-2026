@@ -1,12 +1,17 @@
 from fastapi import FastApi
 
-from models.circuit_layout import CircuitLayout
-from services import qiskit_service
+from backend.models.circuit_layout import CircuitLayout
+from backend.models.evaluation_result import EvaluationResult
+from backend.models.simulation_result import SimulationResult
+from backend.services import qiskit_service
 
 app = FastApi()
 
+
 @app.post("/simulation")
-def simulate(circuit: CircuitLayout, noise: int = 0, shots: int = 1024):
+def simulate(
+    circuit: CircuitLayout, noise: int = 0, shots: int = 1024
+) -> SimulationResult:
     """
     Simulate the quantum circuit and return the simulation results.
     """
@@ -18,7 +23,9 @@ def simulate(circuit: CircuitLayout, noise: int = 0, shots: int = 1024):
 
 
 @app.post("/evaluation")
-def compare_with_ideal(circuit: CircuitLayout, expectation: list[float]):
+def compare_with_ideal(
+    circuit: CircuitLayout, expectation: float
+) -> EvaluationResult:
     """
     Compare the simulation results with the ideal results and return the evaluation metrics.
     """
