@@ -1,33 +1,20 @@
+import { GAME_CONSTANTS } from '../../config/constants';
 
-
-export const GateElement = ({ name }: { name: string }) => {
-  const getColor = (gateName: string) => {
-    switch (gateName) {
-      case 'X': return '#4ade80'; // Green
-      case 'Y': return '#60a5fa'; // Blue
-      case 'Z': return '#f87171'; // Red
-      case 'H': return '#c084fc'; // Purple
-      default: return '#94a3b8';  // Gray
-    }
-  };
+export const GateElement = ({ name, onRemove }: { name: string, onRemove?: () => void }) => {
+  const color = GAME_CONSTANTS.GATE_COLORS[name as keyof typeof GAME_CONSTANTS.GATE_COLORS] || '#94a3b8';
 
   return (
     <div
-      style={{
-        width: '40px',
-        height: '40px',
-        background: getColor(name),
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
-        fontWeight: 'bold',
-        borderRadius: '4px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-        cursor: 'default',
-      }}
+      onClick={onRemove}
+      className={`w-12 h-12 flex items-center justify-center text-white font-bold rounded-md shadow-md cursor-pointer hover:ring-2 hover:ring-white/50 transition-all z-10 relative group`}
+      style={{ backgroundColor: color }}
     >
       {name}
+      {onRemove && (
+        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          ×
+        </div>
+      )}
     </div>
   );
 };
