@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from models.gate import Gate
+from backend.models.gate import Gate
 
 
 class CircuitLayout(BaseModel):

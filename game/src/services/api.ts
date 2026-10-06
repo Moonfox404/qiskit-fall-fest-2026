@@ -1,4 +1,4 @@
-import { CircuitLayout } from '../context/GameStateContext';
+import type { CircuitLayout } from '../context/GameStateContext';
 
 const API_BASE = 'http://localhost:8000';
 

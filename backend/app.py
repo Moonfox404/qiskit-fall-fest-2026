@@ -1,11 +1,21 @@
-from fastapi import FastApi
+from fastapi import FastAPI
 
 from backend.models.circuit_layout import CircuitLayout
 from backend.models.evaluation_result import EvaluationResult
 from backend.models.simulation_result import SimulationResult
 from backend.services import qiskit_service
 
-app = FastApi()
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.post("/simulation")

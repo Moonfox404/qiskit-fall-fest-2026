@@ -1,7 +1,8 @@
-import React from 'react';
+
 import { useGameState } from '../../context/GameStateContext';
 import { GateElement } from './GateElement';
 import { useDroppable } from '@dnd-kit/core';
+import { Fragment } from 'react';
 
 const DropZone = ({ id }: { id: string }) => {
   const { isOver, setNodeRef } = useDroppable({ id });
@@ -55,7 +56,7 @@ export const Wire = () => {
                 const hasGateHere = gate && gate.qubits.includes(qIndex);
 
                 return (
-                  <React.Fragment key={`c-${colIndex}`}>
+                  <Fragment key={`c-${colIndex}`}>
                     {/* Drop zone for this column on this wire */}
                     <DropZone id={`q-${qIndex}-c-${colIndex}`} />
 
@@ -65,7 +66,7 @@ export const Wire = () => {
                         {hasGateHere ? <GateElement name={gate.name} /> : <div style={{ width: '40px' }} />}
                       </div>
                     )}
-                  </React.Fragment>
+                  </Fragment>
                 );
               })}
             </div>

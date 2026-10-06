@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import { createContext, useContext, useReducer } from 'react';
+import type { ReactNode, Dispatch } from 'react';
 
 // --- Types mapping to Backend Models ---
 export interface Gate {
@@ -31,7 +32,7 @@ export type GameAction =
 
 export interface GameContextType {
   state: GameState;
-  dispatch: React.Dispatch<GameAction>;
+  dispatch: Dispatch<GameAction>;
 }
 
 // --- Initial State ---
@@ -91,7 +92,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 // --- Context & Provider ---
 export const GameStateContext = createContext<GameContextType | undefined>(undefined);
 
-export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
   return (

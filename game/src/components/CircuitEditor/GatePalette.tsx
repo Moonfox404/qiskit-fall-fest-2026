@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useDraggable } from '@dnd-kit/core';
 
 const AVAILABLE_GATES = [

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useGameState } from '../context/GameStateContext';
 
 export const ResultsChart = () => {

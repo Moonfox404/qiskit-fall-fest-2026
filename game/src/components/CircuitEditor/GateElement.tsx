@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 export const GateElement = ({ name }: { name: string }) => {
   const getColor = (gateName: string) => {
