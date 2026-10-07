@@ -9,6 +9,8 @@ export const ControlPanel = () => {
   const [shots, setShots] = useState(1024);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  
+  const [isExpanded, setIsExpanded] = useState(true); //open or collapsed
 
   const runCost = Math.max(1, Math.ceil(shots / GAME_CONSTANTS.COST_PER_SHOT_UNIT));
 
@@ -35,41 +37,79 @@ export const ControlPanel = () => {
 
   return (
     <>
-      <div className="bg-game-card/90 backdrop-blur-md border border-gray-700 p-6 rounded-lg shadow-2xl w-80">
-        <h3 className="text-xl font-bold mb-4 text-gray-200">Execution Settings</h3>
-        
-        <div className="mb-4">
-          <label className="flex justify-between text-sm font-bold text-gray-300 mb-2">
-            <span>Shots</span>
-            <span>{shots}</span>
-          </label>
-          <input 
-            type="range" min="100" max="8192" step="100" 
-            value={shots} onChange={(e) => setShots(Number(e.target.value))} 
-            className="w-full accent-game-accent cursor-pointer mb-3"
-          />
-          <input 
-            type="number" min="100" max="8192" 
-            value={shots} onChange={(e) => setShots(Number(e.target.value))}
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 text-center"
-          />
-        </div>
-        
-        <button 
-          onClick={handleRun} 
-          disabled={loading || state.money < runCost}
-          className={`w-full py-3 rounded-md font-bold text-white transition-colors ${state.money >= runCost ? 'bg-game-accent hover:bg-blue-600' : 'bg-gray-600 cursor-not-allowed'}`}
+      <div
+        className={`bg-game-card/90 backdrop-blur-md border border-gray-700 
+        rounded-lg shadow-2xl transition-all duration-300
+        ${isExpanded ? 'w-80 p-6' : 'w-auto p-4'}`}
+      >
+        {/* Clickable header */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={`flex items-center justify-between w-full text-gray-200
+          ${isExpanded ? 'mb-4' : ''}`}
         >
-          {loading ? 'Simulating...' : `Run Circuit ($${runCost})`}
+          <h3 className="text-xl font-bold whitespace-nowrap">
+            Execution Settings
+          </h3>
+
+          <span className="ml-4 text-gray-400">
+            {isExpanded ? '▲' : '▼'}
+          </span>
         </button>
-        {state.money < runCost && (
-          <div className="text-red-400 text-sm mt-2 text-center">
-            Insufficient funding
-          </div>
+
+        {/* Only show settings when expanded */}
+        {isExpanded && (
+          <>
+            <div className="mb-4">
+              <label className="flex justify-between text-sm font-bold text-gray-300 mb-2">
+                <span>Shots</span>
+                <span>{shots}</span>
+              </label>
+
+              <input
+                type="range"
+                min="100"
+                max="8192"
+                step="100"
+                value={shots}
+                onChange={(e) => setShots(Number(e.target.value))}
+                className="w-full accent-game-accent cursor-pointer mb-3"
+              />
+
+              <input
+                type="number"
+                min="100"
+                max="8192"
+                value={shots}
+                onChange={(e) => setShots(Number(e.target.value))}
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded p-2 text-center"
+              />
+            </div>
+
+            <button
+              onClick={handleRun}
+              disabled={loading || state.money < runCost}
+              className={`w-full py-3 rounded-md font-bold text-white transition-colors ${
+                state.money >= runCost
+                  ? 'bg-game-accent hover:bg-blue-600'
+                  : 'bg-gray-600 cursor-not-allowed'
+              }`}
+            >
+              {loading ? 'Simulating...' : `Run Circuit ($${runCost})`}
+            </button>
+
+            {state.money < runCost && (
+              <div className="text-red-400 text-sm mt-2 text-center">
+                Insufficient funding
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {showModal && <ResultsModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <ResultsModal onClose={() => setShowModal(false)} />
+      )}
     </>
   );
 };
