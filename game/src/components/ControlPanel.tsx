@@ -17,7 +17,7 @@ export const ControlPanel = () => {
   const handleRun = async () => {
     setLoading(true);
     try {
-      const result = await runSimulation(state.circuit, shots, 1);
+      const result = await runSimulation(state.circuit, shots, 0);
       dispatch({
         type: 'RUN_SIMULATION',
         payload: {

@@ -19,7 +19,7 @@ export const TopBar = () => {
     }
     setLoading(true);
     try {
-      const result = await submitEvaluation(state.circuit, interpretedResults);
+      const result = await submitEvaluation(levelsData[state.levelIndex].circuit, interpretedResults);
       
       if (result.fidelity >= 0.8) {
         const funding = Math.floor(result.fidelity * currentLevel.max_reward);

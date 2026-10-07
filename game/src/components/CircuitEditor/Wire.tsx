@@ -30,7 +30,7 @@ const CircuitGate = ({
   index: number;
   qubitIndex: number;
   name: string;
-  twirl: boolean;
+  twirl?: boolean;
   isLocked: boolean;
   isSelected: boolean;
   onSelect: () => void;
@@ -217,7 +217,7 @@ const SpanningCircuitGate = ({
   index: number;
   numQubits: number;
   isLocked: boolean;
-  twirl: boolean;
+  twirl?: boolean;
   isSelected: boolean;
   onSelect: () => void;
   onRemove: () => void;

@@ -10,7 +10,7 @@ export interface Gate {
   column?: number;
   isLevelGate?: boolean;
   isBoundaryGate?: boolean;
-  twirl: boolean;
+  twirl?: boolean;
 }
 
 export interface CircuitLayout {
@@ -35,7 +35,8 @@ export interface GameState {
   simulationHistory: SimulationTrial[];
   lastSimulation?: {
     counts: Record<string, number>;
-    estimate: number;
+    expectation: number;
+    state_vector: Array<{ real: number; imag: number }>;
   };
   gameOver: boolean;
   victory: boolean;
@@ -49,7 +50,7 @@ export type GameAction =
   | { type: 'MOVE_GATE'; payload: { fromIndex: number; toIndex: number; fromQubitIndex: number; toQubitIndex: number; toColumnIndex: number } }
   | { type: 'DUPLICATE_CIRCUIT'; payload?: { gates?: Gate[] } }
   | { type: 'REMOVE_CIRCUIT_BLOCK'; payload: { index: number } }
-  | { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; estimate: number } } }
+  | { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; expectation: number; state_vector: Array<{ real: number; imag: number }> } } }
   | { type: 'ADD_FUNDING'; payload: { amount: number } }
   | { type: 'NEXT_LEVEL' }
   | { type: 'RESTART_GAME' };
@@ -451,7 +452,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             trialNumber: state.simulationHistory.length + 1,
             gateCount: state.circuit.layout.length,
             counts: { ...action.payload.result.counts },
-            estimate: action.payload.result.estimate,
+            estimate: action.payload.result.expectation,
           },
         ],
         gameOver: newMoney < 0 || (currentLevel.max_time !== undefined && newTime >= currentLevel.max_time)

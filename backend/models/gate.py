@@ -7,3 +7,4 @@ class Gate(BaseModel):
     """
     name: str
     qubits: list[int]
+    twirl: bool = False
