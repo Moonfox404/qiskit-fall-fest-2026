@@ -42,7 +42,7 @@ export const ResultsModal = ({ onClose }: { onClose: () => void }) => {
         </div>
 
         <div className="bg-game-primary/60 p-4 rounded-md border border-game-text/15">
-          <strong className="text-game-accent">Global Estimate:</strong> {state.lastSimulation.estimate.toFixed(5)}
+          <strong className="text-game-accent">Global Estimate:</strong> {state.lastSimulation.expectation.toFixed(5)}
         </div>
 
         <div className="h-96 w-full bg-game-primary rounded-md p-4 border border-game-text/10">

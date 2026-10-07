@@ -9,7 +9,7 @@ export interface Gate {
   qubits: number[];
   column?: number;
   isLevelGate?: boolean;
-  twirl: boolean;
+  twirl?: boolean;
 }
 
 export interface CircuitLayout {
@@ -314,7 +314,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             trialNumber: state.simulationHistory.length + 1,
             gateCount: state.circuit.layout.length,
             counts: { ...action.payload.result.counts },
-            estimate: action.payload.result.estimate,
+            estimate: action.payload.result.expectation,
           },
         ],
         gameOver: newMoney < 0 || (currentLevel.max_time !== undefined && newTime >= currentLevel.max_time)
