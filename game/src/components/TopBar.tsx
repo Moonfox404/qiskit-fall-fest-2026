@@ -43,13 +43,13 @@ export const TopBar = () => {
   };
 
   return (
-    <div className="flex justify-between items-center p-4 bg-game-card border-b border-gray-800 shadow-md z-20 relative">
+    <div className="flex justify-between items-center p-4 bg-game-card border-b border-game-text/10 shadow-md z-20 relative">
       <div className="flex gap-8">
         <div className="text-xl font-bold">Level {state.levelIndex + 1}</div>
         <div className="text-lg">
-          <span className="text-gray-400">Time:</span> {state.time} {currentLevel.max_time ? `/ ${currentLevel.max_time}` : ''} hrs
+          <span className="text-game-text/60">Time:</span> {state.time} {currentLevel.max_time ? `/ ${currentLevel.max_time}` : ''} hrs
         </div>
-        <div className="text-lg text-green-400 font-bold">
+        <div className="text-lg text-game-accent font-bold">
           ${state.money}
         </div>
       </div>
@@ -57,7 +57,7 @@ export const TopBar = () => {
         <button 
           onClick={handleSubmit} 
           disabled={loading || !state.lastSimulation}
-          className={`px-6 py-2 rounded-md font-bold text-white transition-colors ${state.lastSimulation ? 'bg-game-accent hover:bg-blue-600' : 'bg-gray-600 cursor-not-allowed'}`}
+          className={`px-6 py-2 rounded-md font-bold text-game-text transition-colors ${state.lastSimulation ? 'bg-game-accent hover:bg-game-accent/80' : 'bg-game-primary text-game-text/40 cursor-not-allowed'}`}
         >
           {loading ? 'Evaluating...' : 'Submit Circuit'}
         </button>
