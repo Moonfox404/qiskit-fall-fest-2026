@@ -1,33 +1,17 @@
 [
   {
     "id": 1,
-    "max_time": 10,
-    "max_reward": 500,
+    "max_time": 30,
+    "max_reward": 2000,
     "circuit": {
-      "num_qubits": 3,
-      "layout": []
-    }
-  },
-  {
-    "id": 2,
-    "max_time": 15,
-    "max_reward": 800,
-    "circuit": {
-      "num_qubits": 3,
+      "num_qubits": 2,
       "layout": [
+        { "name": "H", "qubits": [0] },
+        { "name": "CNOT", "qubits": [0, 1] },
+        { "name": "CNOT", "qubits": [0, 1] },
+        { "name": "CNOT", "qubits": [0, 1] },
+        { "name": "CNOT", "qubits": [0, 1] },
         { "name": "H", "qubits": [0] }
-      ]
-    }
-  },
-  {
-    "id": 3,
-    "max_time": 20,
-    "max_reward": 1200,
-    "circuit": {
-      "num_qubits": 4,
-      "layout": [
-        { "name": "X", "qubits": [1] },
-        { "name": "H", "qubits": [2] }
       ]
     }
   }
