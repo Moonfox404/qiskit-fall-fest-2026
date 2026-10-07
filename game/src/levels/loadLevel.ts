@@ -1,11 +1,4 @@
-import type { CircuitLayout } from '../context/GameStateContext';
-
-export interface Level {
-  id: number;
-  max_time: number;
-  max_reward: number;
-  circuit: CircuitLayout;
-}
+import type { Level } from '../types/game';
 
 const levelFiles = import.meta.glob('./*/*.json');
 

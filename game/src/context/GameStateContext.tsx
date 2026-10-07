@@ -2,22 +2,8 @@ import { createContext, useContext, useEffect, useReducer } from 'react';
 import type { ReactNode, Dispatch } from 'react';
 import { GAME_CONSTANTS } from '../config/constants'; 
 import { loadLevel } from '../levels/loadLevel';
-import type { Level } from '../levels/loadLevel';
+import type { Gate, CircuitLayout, Level } from '../types/game';
 
-// --- Types mapping to Backend Models ---
-export interface Gate {
-  name: string;
-  qubits: number[];
-  column?: number;
-  isLevelGate?: boolean;
-  isBoundaryGate?: boolean;
-  twirl?: boolean;
-}
-
-export interface CircuitLayout {
-  num_qubits: number;
-  layout: Gate[];
-}
 
 export interface SimulationTrial {
   trialNumber: number;
