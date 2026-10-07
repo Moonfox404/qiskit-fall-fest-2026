@@ -140,6 +140,7 @@ export const MainLayout = () => {
         const gateData = active.data.current;
 
         if (gateData) {
+          if (gateData.type === 'palette-gate' && gateData.name === 'P') return;
           if (gateData.type === 'circuit-gate' && typeof gateData.sourceIndex === 'number') {
             if (gateData.isMultiQubit && colIndex >= columns.length) return;
             dispatch({
@@ -166,7 +167,7 @@ export const MainLayout = () => {
               dispatch({
                 type: 'ADD_GATE',
                 payload: {
-                  gate: { name: gateData.name, qubits: [qubitIndex] },
+                      gate: { name: gateData.name, qubits: [qubitIndex], twirl: false },
                   cost: gateData.cost,
                   index: insertionIndex,
                   column: colIndex,
@@ -178,6 +179,21 @@ export const MainLayout = () => {
         }
       }
     }
+
+    const gateTarget = over?.data.current;
+    const draggedGate = active.data.current;
+    if (
+      gateTarget?.type === 'gate-target' &&
+      gateTarget.gateIndex !== undefined &&
+      draggedGate?.type === 'palette-gate' &&
+      draggedGate.name === 'P'
+    ) {
+      dispatch({
+        type: 'TWIRL_GATE',
+        payload: { index: gateTarget.gateIndex, cost: draggedGate.cost },
+      });
+      setSelectedGateIndex(null);
+    }
   };
 
   if (state.victory) return <VictoryScreen />;
@@ -186,7 +202,14 @@ export const MainLayout = () => {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={(args) => {
+        const collisions = pointerWithin(args);
+        if (args.active.data.current?.type !== 'palette-gate' || args.active.data.current.name !== 'P') return collisions;
+        const targetCollision = collisions.find(({ id }) =>
+          args.droppableContainers.find((container) => container.id === id)?.data.current?.type === 'gate-target',
+        );
+        return targetCollision ? [targetCollision] : collisions;
+      }}
       modifiers={[({ active, transform }) => active?.data.current?.isMultiQubit ? { ...transform, y: 0 } : transform]}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -278,7 +301,7 @@ export const MainLayout = () => {
                   dispatch({
                     type: 'ADD_GATE',
                     payload: {
-                      gate: { name: pendingGate.name, qubits: pendingGate.qubits },
+                      gate: { name: pendingGate.name, qubits: pendingGate.qubits, twirl: false },
                       cost: pendingGate.cost,
                       index: pendingGate.index,
                       column: pendingGate.column,

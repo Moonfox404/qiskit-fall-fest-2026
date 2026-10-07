@@ -9,6 +9,7 @@ export interface Gate {
   qubits: number[];
   column?: number;
   isLevelGate?: boolean;
+  twirl: boolean;
 }
 
 export interface CircuitLayout {
@@ -41,6 +42,8 @@ export interface GameState {
 
 export type GameAction =
   | { type: 'ADD_GATE'; payload: { gate: Gate; cost: number; index?: number; column?: number } }
+  | { type: 'TWIRL_GATE'; payload: { index: number; cost: number } }
+  | { type: 'UNTWIRL_GATE'; payload: { index: number } }
   | { type: 'REMOVE_GATE'; payload: { index: number } }
   | { type: 'MOVE_GATE'; payload: { fromIndex: number; toIndex: number; fromQubitIndex: number; toQubitIndex: number; toColumnIndex: number } }
   | { type: 'DUPLICATE_CIRCUIT'; payload?: { gates?: Gate[] } }
@@ -111,6 +114,7 @@ const createLevelCircuit = (levelIndex: number): CircuitLayout => {
       ...gate,
       qubits: [...gate.qubits],
       isLevelGate: true,
+      twirl: false,
     })),
   };
 };
@@ -142,6 +146,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newGate = {
         ...action.payload.gate,
         isLevelGate: false,
+        twirl: action.payload.gate.twirl ?? false,
         column: action.payload.column ?? action.payload.gate.column,
       };
       if (action.payload.index !== undefined) {
@@ -160,6 +165,36 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         },
         circuitBlockCount: 1,
         gameOver: newMoney < 0
+      };
+    }
+    case 'TWIRL_GATE': {
+      if (action.payload.index < 0 || action.payload.index >= state.circuit.layout.length) return state;
+      if (state.circuit.layout[action.payload.index].twirl) return state;
+
+      const newMoney = state.money - action.payload.cost;
+      const newLayout = [...state.circuit.layout];
+      newLayout[action.payload.index] = { ...newLayout[action.payload.index], twirl: true };
+      return {
+        ...state,
+        money: newMoney,
+        circuit: { ...state.circuit, layout: newLayout },
+        circuitBlockCount: 1,
+        lastSimulation: undefined,
+        gameOver: newMoney < 0,
+      };
+    }
+    case 'UNTWIRL_GATE': {
+      if (action.payload.index < 0 || action.payload.index >= state.circuit.layout.length) return state;
+      if (!state.circuit.layout[action.payload.index].twirl) return state;
+
+      const newLayout = [...state.circuit.layout];
+      newLayout[action.payload.index] = { ...newLayout[action.payload.index], twirl: false };
+      return {
+        ...state,
+        money: state.money + GAME_CONSTANTS.GATE_COSTS.P,
+        circuit: { ...state.circuit, layout: newLayout },
+        circuitBlockCount: 1,
+        lastSimulation: undefined,
       };
     }
     case 'REMOVE_GATE': {

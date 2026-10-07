@@ -20,34 +20,49 @@ const CircuitGate = ({
   index,
   qubitIndex,
   name,
+  twirl,
   isLocked,
   isSelected,
   onSelect,
   onRemove,
+  onRemoveTwirl,
 }: {
   index: number;
   qubitIndex: number;
   name: string;
+  twirl: boolean;
   isLocked: boolean;
   isSelected: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  onRemoveTwirl: () => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `circuit-gate-${index}-q-${qubitIndex}`,
     data: { type: 'circuit-gate', sourceIndex: index, sourceQubitIndex: qubitIndex, name },
     disabled: isLocked,
   });
+  const { setNodeRef: setDropNodeRef } = useDroppable({
+    id: `gate-target-${index}`,
+    data: { type: 'gate-target', gateIndex: index },
+  });
 
   return (
     <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform) }}
-      className={`relative w-12 group ${isDragging ? 'opacity-30' : ''}`}
+      ref={setDropNodeRef}
+      className="group relative h-12 w-20"
     >
-      <div {...attributes} {...listeners} className={isLocked ? 'cursor-default' : 'touch-none cursor-grab'}>
-        <GateElement name={name} isSelected={isSelected} onSelect={onSelect} />
+      <div
+        ref={setNodeRef}
+        style={{ transform: CSS.Translate.toString(transform) }}
+        className={`absolute left-4 top-0 h-12 w-12 ${isDragging ? 'opacity-30' : ''}`}
+      >
+        <div {...attributes} {...listeners} className={isLocked ? 'cursor-default' : 'touch-none cursor-grab'}>
+          <GateElement name={name} isSelected={isSelected} onSelect={onSelect} />
+        </div>
       </div>
+      {twirl && <TwirlMarker side="left" onRemove={onRemoveTwirl} />}
+      {twirl && <TwirlMarker side="right" onRemove={onRemoveTwirl} />}
       {!isLocked && (
         <button
           type="button"
@@ -77,6 +92,10 @@ export const Wire = ({
   const handleRemoveGate = (index: number) => {
     dispatch({ type: 'REMOVE_GATE', payload: { index } });
     onSelectGate(null);
+  };
+
+  const handleRemoveTwirl = (index: number) => {
+    dispatch({ type: 'UNTWIRL_GATE', payload: { index } });
   };
 
   const multiQubitGates = columns.flatMap((column, columnIndex) => column
@@ -121,15 +140,17 @@ export const Wire = ({
                     <DropZone id={`q-${qubitIndex}-c-${columnIndex}`} />
                   </div>
                   {positionedGate && (
-                    <div className="z-20 flex h-12 items-center justify-center" style={{ gridColumn: columnIndex + 2, gridRow: qubitIndex + 1 }}>
+                    <div className="z-20 flex h-12 w-20 items-center justify-center" style={{ gridColumn: columnIndex + 2, gridRow: qubitIndex + 1 }}>
                       <CircuitGate
                         index={positionedGate.index}
                         qubitIndex={qubitIndex}
                         name={positionedGate.gate.name}
+                        twirl={positionedGate.gate.twirl}
                         isLocked={positionedGate.gate.isLevelGate ?? false}
                         isSelected={selectedGateIndex === positionedGate.index}
                         onSelect={() => onSelectGate(positionedGate.index)}
                         onRemove={() => handleRemoveGate(positionedGate.index)}
+                        onRemoveTwirl={() => handleRemoveTwirl(positionedGate.index)}
                       />
                     </div>
                   )}
@@ -146,9 +167,11 @@ export const Wire = ({
             index={index}
             numQubits={state.circuit.num_qubits}
             isLocked={gate.isLevelGate ?? false}
+            twirl={gate.twirl}
             isSelected={selectedGateIndex === index}
             onSelect={() => onSelectGate(index)}
             onRemove={() => handleRemoveGate(index)}
+            onRemoveTwirl={() => handleRemoveTwirl(index)}
           />
         ))}
       </div>
@@ -162,18 +185,22 @@ const SpanningCircuitGate = ({
   index,
   numQubits,
   isLocked,
+  twirl,
   isSelected,
   onSelect,
   onRemove,
+  onRemoveTwirl,
 }: {
   gate: { name: string; qubits: number[] };
   columnIndex: number;
   index: number;
   numQubits: number;
   isLocked: boolean;
+  twirl: boolean;
   isSelected: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  onRemoveTwirl: () => void;
 }) => {
   const firstQubit = Math.min(...gate.qubits);
   const lastQubit = Math.max(...gate.qubits);
@@ -189,21 +216,34 @@ const SpanningCircuitGate = ({
     },
     disabled: isLocked,
   });
+  const { setNodeRef: setDropNodeRef } = useDroppable({
+    id: `gate-target-${index}`,
+    data: { type: 'gate-target', gateIndex: index },
+  });
 
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      onClick={onSelect}
+      ref={setDropNodeRef}
       style={{
         gridColumn: columnIndex + 2,
         gridRow: `1 / ${numQubits + 1}`,
         gridTemplateRows: `repeat(${numQubits}, 3rem)`,
         rowGap: '2rem',
       }}
-      className={`group pointer-events-none relative z-30 grid ${isSelected ? 'ring-2 ring-game-text' : ''}`}
+      className="pointer-events-none relative z-30 grid"
     >
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        onClick={onSelect}
+        style={{
+          gridRow: '1 / -1',
+          gridTemplateRows: `repeat(${numQubits}, 3rem)`,
+          rowGap: '2rem',
+        }}
+        className={`group pointer-events-none relative z-30 grid ${isSelected ? 'ring-2 ring-game-text' : ''}`}
+      >
       {lastQubit > firstQubit && (
         <>
           <div
@@ -233,13 +273,14 @@ const SpanningCircuitGate = ({
           <div
             key={qubitIndex}
             style={{ gridRow: qubitIndex + 1 }}
-            className={`relative z-10 flex h-12 items-center justify-center ${isInput ? 'pointer-events-auto border-y border-game-accent/40 bg-game-primary/20' : 'pointer-events-none'}`}
+            className={`relative z-10 flex h-12 w-20 items-center justify-center ${isInput ? 'pointer-events-auto border-y border-game-accent/40 bg-game-primary/20' : 'pointer-events-none'}`}
           >
             {isInput && (
               <span
                 aria-label={`CNOT ${isControl ? 'control' : 'target'} on qubit ${qubitIndex}`}
-                className="relative flex h-12 w-12 items-center justify-center"
+                className="relative flex h-12 w-20 items-center justify-center"
               >
+                {twirl && qubitIndex === gate.qubits[0] && <TwirlMarker side="left" onRemove={onRemoveTwirl} />}
                 {isControl ? (
                   <span className="block h-3 w-3 rounded-full bg-game-text drop-shadow-[0_0_6px_rgba(52,211,153,0.95)]" />
                 ) : (
@@ -247,6 +288,7 @@ const SpanningCircuitGate = ({
                     <span className="-translate-y-px text-lg font-bold leading-none">+</span>
                   </span>
                 )}
+                {twirl && qubitIndex === gate.qubits[gate.qubits.length - 1] && <TwirlMarker side="right" onRemove={onRemoveTwirl} />}
                 {isControl && !isLocked && (
                   <button
                     type="button"
@@ -264,6 +306,21 @@ const SpanningCircuitGate = ({
           </div>
         );
       })}
+      </div>
     </div>
   );
 };
+
+const TwirlMarker = ({ side, onRemove }: { side: 'left' | 'right'; onRemove: () => void }) => (
+  <button
+    type="button"
+    aria-label="Remove Pauli twirl"
+    title={`Remove Pauli twirl and refund $${GAME_CONSTANTS.GATE_COSTS.P}`}
+    onPointerDown={(event) => event.stopPropagation()}
+    onClick={(event) => { event.stopPropagation(); onRemove(); }}
+    className={`group absolute top-1/2 ${side === 'left' ? 'left-0' : 'right-0'} z-20 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-sm bg-emerald-500 text-[10px] font-bold leading-none text-game-primary shadow-sm transition-colors hover:bg-game-primary hover:text-game-text`}
+  >
+    <span className="group-hover:hidden">P</span>
+    <span className="hidden group-hover:inline">×</span>
+  </button>
+);
