@@ -1,5 +1,13 @@
+import math
+
 from qiskit import QuantumCircuit
-from qiskit.quantum_info import Clifford, Pauli, random_pauli
+from qiskit.quantum_info import (
+    Clifford,
+    Pauli,
+    SparsePauliOp,
+    Statevector,
+    random_pauli,
+)
 from qiskit.transpiler import generate_preset_pass_manager
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import (
@@ -229,11 +237,52 @@ def _get_quantum_error(error_class: str, params: dict, num_qubits: int):
 
 def evaluate(circuit: QuantumCircuit, expectation: float):
     """
-    Compare the simulation results with the ideal results and return the evaluation metrics.
+    Compare an estimated Z-parity expectation with the ideal circuit result.
     """
-    # stub implementation for evaluation
+    if not math.isfinite(expectation) or not -1 <= expectation <= 1:
+        raise ValueError("expectation must be a finite value between -1 and 1")
+
+    observable = SparsePauliOp("Z" * circuit.num_qubits)
+    ideal_expectation = float(
+        Statevector.from_instruction(circuit).expectation_value(observable).real
+    )
+    ideal_expectation = min(1.0, max(-1.0, ideal_expectation))
+
+    ideal_probabilities = _parity_probabilities(ideal_expectation)
+    estimated_probabilities = _parity_probabilities(expectation)
+
+    # Smoothing keeps KL finite when either expectation is exactly +/-1.
+    epsilon = 1e-12
+    smoothed_ideal = _smooth_probabilities(ideal_probabilities, epsilon)
+    smoothed_estimated = _smooth_probabilities(estimated_probabilities, epsilon)
+
+    fidelity = sum(
+        math.sqrt(ideal * estimated)
+        for ideal, estimated in zip(ideal_probabilities, estimated_probabilities)
+    ) ** 2
+    kl_divergence = sum(
+        ideal * math.log(ideal / estimated)
+        for ideal, estimated in zip(smoothed_ideal, smoothed_estimated)
+    )
+    total_variation_distance = 0.5 * sum(
+        abs(ideal - estimated)
+        for ideal, estimated in zip(ideal_probabilities, estimated_probabilities)
+    )
+
     return {
-        "fidelity": 0.95,  # Placeholder fidelity
-        "kl_divergence": 0.05,  # Placeholder error rate
-        "total_variation_distance": 0.1,  # Placeholder total variation distance
+        "fidelity": fidelity,
+        "kl_divergence": kl_divergence,
+        "total_variation_distance": total_variation_distance,
     }
+
+
+def _parity_probabilities(expectation: float) -> tuple[float, float]:
+    return (1 + expectation) / 2, (1 - expectation) / 2
+
+
+def _smooth_probabilities(
+    probabilities: tuple[float, float], epsilon: float
+) -> tuple[float, float]:
+    smoothed = tuple(max(probability, epsilon) for probability in probabilities)
+    total = sum(smoothed)
+    return smoothed[0] / total, smoothed[1] / total
