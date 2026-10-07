@@ -1,5 +1,4 @@
 from qiskit import QuantumCircuit
-from qiskit.quantum_info import SparsePauliOp
 from qiskit.transpiler import generate_preset_pass_manager
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import (
@@ -8,7 +7,6 @@ from qiskit_aer.noise import (
     depolarizing_error,
     thermal_relaxation_error,
 )
-from qiskit_aer.primitives import EstimatorV2 as AerEstimatorV2
 
 from backend.models.circuit_layout import CircuitLayout
 
@@ -37,13 +35,10 @@ def simulate(
     shots: int = 1024,
     error_class: str = "depolarizing_error",
     noise_params: dict | None = None,
-    observable: SparsePauliOp | None = None,
 ):
     """
     Simulate a noisy circuit and return its measurement and statevector results.
     """
-    if observable is None:
-        observable = _get_observable(circuit.num_qubits)
     noise_model = NoiseModel()
     params = noise_params or {}
     if error_class not in {
@@ -65,25 +60,17 @@ def simulate(
     simulator = AerSimulator(method="statevector", noise_model=noise_model)
     pass_manager = generate_preset_pass_manager(OPTIMISATION_LEVEL, simulator)
     transpiled_circuit = pass_manager.run(circuit.copy())
-
-    estimator = AerEstimatorV2(
-        options={
-            "backend_options": {
-                "method": "statevector",
-                "noise_model": noise_model,
-            },
-            "run_options": {"shots": shots},
-        }
-    )
-    estimate_result = estimator.run([(transpiled_circuit, observable)]).result()[0]
-    expectation = float(estimate_result.data.evs)
-
     transpiled_circuit.save_statevector()
+
     transpiled_circuit.measure_all()
 
     result = simulator.run(transpiled_circuit, shots=shots).result()
     counts = result.get_counts()
     statevector = result.data(0)["statevector"].data
+    expectation = sum(
+        (-1) ** bitstring.replace(" ", "").count("1") * count
+        for bitstring, count in counts.items()
+    ) / shots
 
     return {
         "counts": counts,
@@ -138,8 +125,3 @@ def evaluate(circuit: QuantumCircuit, expectation: float):
         "kl_divergence": 0.05,  # Placeholder error rate
         "total_variation_distance": 0.1,  # Placeholder total variation distance
     }
-
-
-def _get_observable(n_qubits: int):
-    observable = SparsePauliOp("Z" * n_qubits)
-    return observable
