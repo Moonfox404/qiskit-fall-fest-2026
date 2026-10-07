@@ -1,7 +1,8 @@
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useEffect, useReducer } from 'react';
 import type { ReactNode, Dispatch } from 'react';
-import { GAME_CONSTANTS } from '../config/constants';
-import levelsData from '../levels/levels.json';
+import { GAME_CONSTANTS } from '../config/constants'; 
+import { loadLevel } from '../levels/loadLevel';
+import type { Level } from '../levels/loadLevel';
 
 // --- Types mapping to Backend Models ---
 export interface Gate {
@@ -29,7 +30,8 @@ export interface SimulationTrial {
 export interface GameState {
   money: number;
   time: number;
-  levelIndex: number; // 0-indexed index into levelsData
+  levelId: number;
+  currentLevel: Level | null;
   circuit: CircuitLayout;
   circuitBlockCount: number;
   simulationHistory: SimulationTrial[];
@@ -40,7 +42,8 @@ export interface GameState {
   };
   gameOver: boolean;
   victory: boolean;
-}
+  loadingLevel: boolean;
+} 
 
 export type GameAction =
   | { type: 'ADD_GATE'; payload: { gate: Gate; cost: number; index?: number; column?: number } }
@@ -49,15 +52,17 @@ export type GameAction =
   | { type: 'REMOVE_GATE'; payload: { index: number } }
   | { type: 'MOVE_GATE'; payload: { fromIndex: number; toIndex: number; fromQubitIndex: number; toQubitIndex: number; toColumnIndex: number } }
   | { type: 'DUPLICATE_CIRCUIT'; payload?: { gates?: Gate[] } }
-  | { type: 'REMOVE_CIRCUIT_BLOCK'; payload: { index: number } }
-  | { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; expectation: number; state_vector: Array<{ real: number; imag: number }> } } }
+  | { type: 'REMOVE_CIRCUIT_BLOCK'; payload: { index: number } }| { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; expectation: number; state_vector: Array<{ real: number; imag: number }> } } }
   | { type: 'ADD_FUNDING'; payload: { amount: number } }
-  | { type: 'NEXT_LEVEL' }
+  | { type: 'LOAD_LEVEL'; payload: Level }
+  | { type: 'SET_LEVEL_LOADING'; payload: boolean }
+  | { type: 'VICTORY' }
   | { type: 'RESTART_GAME' };
 
 export interface GameContextType {
   state: GameState;
   dispatch: Dispatch<GameAction>;
+  goToNextLevel: () => Promise<void>;
 }
 
 export const getCircuitCost = (layout: Gate[]) =>
@@ -191,21 +196,31 @@ const shiftCircuitColumnsForInsertion = (
   });
 };
 
-const createLevelCircuit = (levelIndex: number): CircuitLayout => {
-  const circuit = levelsData[levelIndex].circuit;
+const createLevelCircuit = (circuit: CircuitLayout): CircuitLayout => {
   const starterLayout = circuit.layout.map((gate) => ({
     ...gate,
     qubits: [...gate.qubits],
     isLevelGate: true,
     twirl: false,
   }));
+
   const starterColumns = getCircuitColumns(starterLayout);
   const columnByGateIndex = new Map<number, number>();
+
   starterColumns.forEach((column, columnIndex) => {
-    column.forEach(({ index }) => columnByGateIndex.set(index, columnIndex));
+    column.forEach(({ index }) =>
+      columnByGateIndex.set(index, columnIndex)
+    );
   });
-  const firstStarterColumn = starterColumns.findIndex((column) => column.length > 0);
-  const lastStarterColumn = starterColumns.findLastIndex((column) => column.length > 0);
+
+  const firstStarterColumn = starterColumns.findIndex(
+    (column) => column.length > 0
+  );
+
+  const lastStarterColumn = starterColumns.findLastIndex(
+    (column) => column.length > 0
+  );
+
   const boundaryGateIndexes = new Set([
     ...(starterColumns[firstStarterColumn] ?? []).map(({ index }) => index),
     ...(starterColumns[lastStarterColumn] ?? []).map(({ index }) => index),
@@ -213,11 +228,13 @@ const createLevelCircuit = (levelIndex: number): CircuitLayout => {
 
   return {
     ...circuit,
-    layout: sortGatesByColumn(starterLayout.map((gate, index) => ({
-      ...gate,
-      column: columnByGateIndex.get(index) ?? 0,
-      isBoundaryGate: boundaryGateIndexes.has(index),
-    }))),
+    layout: sortGatesByColumn(
+      starterLayout.map((gate, index) => ({
+        ...gate,
+        column: columnByGateIndex.get(index) ?? 0,
+        isBoundaryGate: boundaryGateIndexes.has(index),
+      }))
+    ),
   };
 };
 
@@ -225,12 +242,17 @@ const createLevelCircuit = (levelIndex: number): CircuitLayout => {
 const initialState: GameState = {
   money: GAME_CONSTANTS.STARTING_MONEY,
   time: GAME_CONSTANTS.STARTING_TIME,
-  levelIndex: 0,
-  circuit: createLevelCircuit(0),
+  levelId: 1,
+  currentLevel: null,
+  circuit: {
+    num_qubits: 0,
+    layout: [],
+  },
   circuitBlockCount: 1,
   simulationHistory: [],
   gameOver: false,
   victory: false,
+  loadingLevel: true,
 };
 
 // --- Reducer Logic ---
@@ -239,8 +261,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     if (action.type === 'RESTART_GAME') return { ...initialState };
     return state;
   }
-
-  const currentLevel = levelsData[state.levelIndex];
 
   switch (action.type) {
     case 'ADD_GATE': {
@@ -455,34 +475,56 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             estimate: action.payload.result.expectation,
           },
         ],
-        gameOver: newMoney < 0 || (currentLevel.max_time !== undefined && newTime >= currentLevel.max_time)
-      };
+        gameOver:
+          newMoney < 0 ||
+          (
+            state.currentLevel?.max_time !== undefined &&
+            newTime >= state.currentLevel.max_time
+          )      
+        };
     }
     case 'ADD_FUNDING':
       return {
         ...state,
         money: state.money + action.payload.amount,
       };
-    case 'NEXT_LEVEL': {
-      const nextIndex = state.levelIndex + 1;
-      if (nextIndex >= levelsData.length) {
-        return { ...state, victory: true };
-      }
-      const newTime = state.time + GAME_CONSTANTS.TIME_PER_LEVEL_START;
-      const nextLevel = levelsData[nextIndex];
+    case 'LOAD_LEVEL': {
+      const newTime =
+        action.payload.id === 1
+          ? GAME_CONSTANTS.STARTING_TIME
+          : state.time + GAME_CONSTANTS.TIME_PER_LEVEL_START;
+
       return {
         ...state,
-        levelIndex: nextIndex,
+        levelId: action.payload.id,
+        currentLevel: action.payload,
+        circuit: createLevelCircuit(action.payload.circuit),
         time: newTime,
-        circuit: createLevelCircuit(nextIndex),
         circuitBlockCount: 1,
         simulationHistory: [],
         lastSimulation: undefined,
-        gameOver: nextLevel.max_time !== undefined && newTime >= nextLevel.max_time
+        gameOver:
+          action.payload.max_time !== undefined &&
+          newTime >= action.payload.max_time,
+        loadingLevel: false,
       };
     }
+    case 'SET_LEVEL_LOADING':
+      return {
+        ...state,
+        loadingLevel: action.payload,
+      };
+
+    case 'VICTORY':
+      return {
+        ...state,
+        victory: true,
+        loadingLevel: false,
+      };
     case 'RESTART_GAME':
-      return { ...initialState };
+      return {
+        ...initialState,
+      };
     default:
       return state;
   }
@@ -494,8 +536,54 @@ export const GameStateContext = createContext<GameContextType | undefined>(undef
 export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
+  // Load Level 1 when the game first starts
+  useEffect(() => {
+    const loadInitialLevel = async () => {
+      const level = await loadLevel(1);
+
+      if (!level) {
+        console.error('Level 1 could not be loaded.');
+        return;
+      }
+
+      dispatch({
+        type: 'LOAD_LEVEL',
+        payload: level,
+      });
+    };
+
+    loadInitialLevel();
+  }, []);
+
+  // Load the next level when the player completes the current level
+  const goToNextLevel = async () => {
+    dispatch({
+      type: 'SET_LEVEL_LOADING',
+      payload: true,
+    });
+
+    const nextLevel = await loadLevel(state.levelId + 1);
+
+    // No next level = player completed all available levels
+    if (!nextLevel) {
+      dispatch({ type: 'VICTORY' });
+      return;
+    }
+
+    dispatch({
+      type: 'LOAD_LEVEL',
+      payload: nextLevel,
+    });
+  };
+
   return (
-    <GameStateContext.Provider value={{ state, dispatch }}>
+    <GameStateContext.Provider
+      value={{
+        state,
+        dispatch,
+        goToNextLevel,
+      }}
+    >
       {children}
     </GameStateContext.Provider>
   );
