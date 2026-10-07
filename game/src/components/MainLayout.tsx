@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
-import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { CircuitWorkspace } from './CircuitEditor/CircuitWorkspace';
@@ -296,15 +295,25 @@ export const MainLayout = () => {
         </div>
       )}
       
-      <DragOverlay modifiers={[snapCenterToCursor]} dropAnimation={null} style={{ zIndex: 9999 }}>
+      <DragOverlay
+        modifiers={[({ transform, activatorEvent, activeNodeRect, overlayNodeRect }) => {
+          if (!(activatorEvent instanceof MouseEvent) || !activeNodeRect || !overlayNodeRect) return transform;
+          return {
+            ...transform,
+            x: transform.x + activatorEvent.clientX - activeNodeRect.left - overlayNodeRect.width / 2,
+            y: transform.y + activatorEvent.clientY - activeNodeRect.top - overlayNodeRect.height / 2,
+          };
+        }]}
+        dropAnimation={null}
+        style={{ zIndex: 9999 }}
+      >
         {activeGate?.type === 'circuit-gate' ? (
-          <div className="cursor-grabbing shadow-xl">
+          <div className="h-12 w-12 cursor-grabbing">
             <GateElement name={activeGate.name} />
           </div>
         ) : activeGate?.type === 'palette-gate' ? (
-          <div className={`cursor-grabbing rounded-md p-3 text-center font-bold shadow-xl ${GAME_CONSTANTS.GATE_STYLES[activeGate.name as keyof typeof GAME_CONSTANTS.GATE_STYLES]}`}>
-            <div className="text-xl">{activeGate.name}</div>
-            <div className="text-sm font-normal opacity-80">${activeGate.cost}</div>
+          <div className="h-12 w-12 cursor-grabbing">
+            <GateElement name={activeGate.name} />
           </div>
         ) : null}
       </DragOverlay>

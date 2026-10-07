@@ -110,14 +110,32 @@ const calculateFit = (trials: SimulationTrial[], fitType: FitType) => {
   };
 };
 
-export const TrialHistoryModal = ({ onClose }: { onClose: () => void }) => {
+export const TrialHistoryModal = ({
+  onClose,
+  mode = 'history',
+  isSubmitting = false,
+  onSubmitResults,
+}: {
+  onClose: () => void;
+  mode?: 'history' | 'submit';
+  isSubmitting?: boolean;
+  onSubmitResults?: (results: number) => void | Promise<void>;
+}) => {
   const { state } = useGameState();
+  const [resultsInput, setResultsInput] = useState(() => {
+    const estimates = state.simulationHistory.map((trial) => trial.estimate);
+    const averageEstimate = estimates.length > 0
+      ? estimates.reduce((sum, estimate) => sum + estimate, 0) / estimates.length
+      : 0;
+    return String(averageEstimate);
+  });
   const [selectedTrialNumber, setSelectedTrialNumber] = useState(state.simulationHistory.at(-1)?.trialNumber ?? null);
   const [fitType, setFitType] = useState<FitType>('none');
   const selectedTrialIndex = state.simulationHistory.findIndex((trial) => trial.trialNumber === selectedTrialNumber);
   const selectedTrial = state.simulationHistory.find((trial) => trial.trialNumber === selectedTrialNumber);
   const fitData = useMemo(() => calculateFit(state.simulationHistory, fitType), [fitType, state.simulationHistory]);
   const chartData = fitData?.points ?? state.simulationHistory;
+  const isSubmitMode = mode === 'submit';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
@@ -129,7 +147,7 @@ export const TrialHistoryModal = ({ onClose }: { onClose: () => void }) => {
       >
         <header className="mb-5 flex items-center justify-between border-b border-game-text/15 pb-4">
           <div>
-            <h2 id="trial-history-title" className="text-xl font-bold">Simulation trials</h2>
+            <h2 id="trial-history-title" className="text-xl font-bold">{isSubmitMode ? 'Submit circuit results' : 'Simulation trials'}</h2>
             <p className="mt-1 text-sm text-game-text/60">{state.simulationHistory.length} runs recorded</p>
           </div>
           <button
@@ -304,6 +322,45 @@ export const TrialHistoryModal = ({ onClose }: { onClose: () => void }) => {
               )}
             </section>
           </div>
+        )}
+        {isSubmitMode && (
+          <form
+            className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-game-text/15 pt-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const results = Number(resultsInput);
+              if (Number.isFinite(results)) void onSubmitResults?.(results);
+            }}
+          >
+            <label className="flex min-w-48 flex-1 flex-col gap-2 text-sm font-semibold text-game-text/80">
+              <span>Results:</span>
+              <input
+                type="number"
+                step="any"
+                value={resultsInput}
+                onChange={(event) => setResultsInput(event.target.value)}
+                disabled={isSubmitting}
+                className="w-full border border-game-text/20 bg-game-primary px-3 py-2 font-mono text-game-text outline-none focus:border-game-accent"
+              />
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="border border-game-text/20 px-4 py-2 text-game-text/80 transition-colors hover:bg-game-primary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || resultsInput.trim() === '' || !Number.isFinite(Number(resultsInput))}
+                className="bg-game-accent px-4 py-2 font-semibold text-game-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit results'}
+              </button>
+            </div>
+          </form>
         )}
       </section>
     </div>

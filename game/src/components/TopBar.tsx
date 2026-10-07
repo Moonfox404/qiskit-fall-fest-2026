@@ -9,16 +9,17 @@ export const TopBar = () => {
   const { state, dispatch } = useGameState();
   const [loading, setLoading] = useState(false);
   const [showTrialHistory, setShowTrialHistory] = useState(false);
+  const [showSubmitScreen, setShowSubmitScreen] = useState(false);
   const currentLevel = levelsData[state.levelIndex];
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (interpretedResults: number) => {
     if (!state.lastSimulation) {
       alert("Run a simulation first to get an estimate!");
       return;
     }
     setLoading(true);
     try {
-      const result = await submitEvaluation(state.circuit, state.lastSimulation.estimate);
+      const result = await submitEvaluation(state.circuit, interpretedResults);
       
       if (result.fidelity >= 0.8) {
         const funding = Math.floor(result.fidelity * currentLevel.max_reward);
@@ -29,6 +30,7 @@ export const TopBar = () => {
           `Funding Awarded: $${funding}`
         );
         dispatch({ type: 'ADD_FUNDING', payload: { amount: funding } });
+        setShowSubmitScreen(false);
         dispatch({ type: 'NEXT_LEVEL' });
       } else {
         alert(
@@ -68,7 +70,7 @@ export const TopBar = () => {
           <span>Trials ({state.simulationHistory.length})</span>
         </button>
         <button 
-          onClick={handleSubmit} 
+          onClick={() => setShowSubmitScreen(true)}
           disabled={loading || !state.lastSimulation}
           className={`px-6 py-2 rounded-md font-bold text-game-text transition-colors ${state.lastSimulation ? 'bg-game-accent hover:bg-game-accent/80' : 'bg-game-primary text-game-text/40 cursor-not-allowed'}`}
         >
@@ -76,6 +78,14 @@ export const TopBar = () => {
         </button>
       </div>
       {showTrialHistory && <TrialHistoryModal onClose={() => setShowTrialHistory(false)} />}
+      {showSubmitScreen && (
+        <TrialHistoryModal
+          mode="submit"
+          isSubmitting={loading}
+          onSubmitResults={handleSubmit}
+          onClose={() => setShowSubmitScreen(false)}
+        />
+      )}
     </div>
   );
 };

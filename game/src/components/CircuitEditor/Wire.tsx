@@ -202,18 +202,29 @@ const SpanningCircuitGate = ({
         gridTemplateRows: `repeat(${numQubits}, 3rem)`,
         rowGap: '2rem',
       }}
-      className={`pointer-events-none relative z-30 grid ${isSelected ? 'ring-2 ring-game-text' : ''}`}
+      className={`group pointer-events-none relative z-30 grid ${isSelected ? 'ring-2 ring-game-text' : ''}`}
     >
       {lastQubit > firstQubit && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute z-0 w-[2px] -translate-x-1/2 rounded-full bg-game-text shadow-[0_0_6px_rgba(255,255,255,0.65)]"
-          style={{
-            left: '50%',
-            top: `calc(1.5rem + ${firstQubit * 5}rem)`,
-            height: `${(lastQubit - firstQubit) * 5}rem`,
-          }}
-        />
+        <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-auto absolute z-0 w-4 -translate-x-1/2 bg-transparent"
+            style={{
+              left: '50%',
+              top: `calc(1.5rem + ${firstQubit * 5}rem)`,
+              height: `${(lastQubit - firstQubit) * 5}rem`,
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute z-0 w-[2px] -translate-x-1/2 rounded-full bg-game-text shadow-[0_0_6px_rgba(255,255,255,0.65)]"
+            style={{
+              left: '50%',
+              top: `calc(1.5rem + ${firstQubit * 5}rem)`,
+              height: `${(lastQubit - firstQubit) * 5}rem`,
+            }}
+          />
+        </>
       )}
       {Array.from({ length: numQubits }, (_, qubitIndex) => {
         const isInput = gate.qubits.includes(qubitIndex);
@@ -227,7 +238,7 @@ const SpanningCircuitGate = ({
             {isInput && (
               <span
                 aria-label={`CNOT ${isControl ? 'control' : 'target'} on qubit ${qubitIndex}`}
-                className="group relative flex h-12 w-12 items-center justify-center"
+                className="relative flex h-12 w-12 items-center justify-center"
               >
                 {isControl ? (
                   <span className="block h-3 w-3 rounded-full bg-game-text drop-shadow-[0_0_6px_rgba(52,211,153,0.95)]" />
