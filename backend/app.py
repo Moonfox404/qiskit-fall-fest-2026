@@ -28,7 +28,7 @@ def simulate(
 
     qiskit_circuit = qiskit_service.construct_circuit(circuit)
 
-    result = qiskit_service.simulate(qiskit_circuit, noise=noise, shots=shots)
+    result = qiskit_service.simulate(qiskit_circuit, shots=shots, error_class="depolarizing_error", noise_params={"p": noise})
     return result
 
 

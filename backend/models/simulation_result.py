@@ -7,4 +7,5 @@ class SimulationResult(BaseModel):
     """
 
     counts: dict[str, int]
-    estimate: float
+    expectation: float
+    state_vector: list[dict[str, float]]

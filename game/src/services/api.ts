@@ -4,7 +4,8 @@ const API_BASE = 'http://localhost:8000';
 
 export interface SimulationResult {
   counts: Record<string, number>;
-  estimate: number;
+  expectation: number;
+  state_vector: Array<{ real: number; imag: number }>;
 }
 
 export interface EvaluationResult {
