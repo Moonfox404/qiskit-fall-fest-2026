@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bar,
   BarChart,
@@ -59,21 +60,52 @@ const calculateFit = (trials: SimulationTrial[], fitType: FitType) => {
   let equation: string;
 
   if (fitType === 'exponential') {
-    if (sortedTrials.some((trial) => trial.estimate <= 0)) return null;
-    const logEstimates = sortedTrials.map((trial) => Math.log(trial.estimate));
-    const meanX = normalizedX.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
-    const meanLogEstimate = logEstimates.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
-    const variance = normalizedX.reduce((sum, value) => sum + (value - meanX) ** 2, 0);
-    if (variance === 0) return null;
-    const slope = normalizedX.reduce(
-      (sum, value, index) => sum + (value - meanX) * (logEstimates[index] - meanLogEstimate),
-      0,
-    ) / variance;
-    const intercept = meanLogEstimate - slope * meanX;
-    const slopePerGate = slope / xScale;
-    const amplitude = Math.exp(intercept - slopePerGate * xCenter);
-    evaluate = (gateCount) => Math.exp(intercept + slope * ((gateCount - xCenter) / xScale));
-    equation = `y = ${formatNumber(amplitude)}e^(${formatNumber(slopePerGate)}g)`;
+    const estimates = sortedTrials.map((trial) => trial.estimate);
+    const minEstimate = Math.min(...estimates);
+    const maxEstimate = Math.max(...estimates);
+    const estimateScale = Math.max(maxEstimate - minEstimate, Math.abs(minEstimate) * 0.1, 1e-6);
+    const minDistance = Math.max(estimateScale * 1e-7, Number.EPSILON * Math.max(1, Math.abs(minEstimate)));
+    const maxDistance = estimateScale * 1e5;
+    let bestFit: { amplitude: number; slope: number; offset: number; error: number } | null = null;
+
+    const tryOffset = (offset: number) => {
+      const shiftedEstimates = estimates.map((estimate) => estimate - offset);
+      if (shiftedEstimates.some((estimate) => estimate <= 0)) return;
+
+      const logEstimates = shiftedEstimates.map((estimate) => Math.log(estimate));
+      const meanX = normalizedX.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
+      const meanLogEstimate = logEstimates.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
+      const variance = normalizedX.reduce((sum, value) => sum + (value - meanX) ** 2, 0);
+      if (variance === 0) return;
+      const slope = normalizedX.reduce(
+        (sum, value, index) => sum + (value - meanX) * (logEstimates[index] - meanLogEstimate),
+        0,
+      ) / variance;
+      const amplitude = Math.exp(meanLogEstimate - slope * meanX);
+      if (!Number.isFinite(amplitude) || !Number.isFinite(slope)) return;
+      const error = normalizedX.reduce((sum, value, index) => {
+        const residual = amplitude * Math.exp(slope * value) + offset - estimates[index];
+        return sum + residual * residual;
+      }, 0);
+      if (Number.isFinite(error) && (!bestFit || error < bestFit.error)) {
+        bestFit = { amplitude, slope, offset, error };
+      }
+    };
+
+    if (minEstimate > 0) tryOffset(0);
+    for (let step = 0; step <= 256; step += 1) {
+      const fraction = step / 256;
+      const distance = minDistance * (maxDistance / minDistance) ** fraction;
+      tryOffset(minEstimate - distance);
+    }
+
+    if (!bestFit) return null;
+    const { amplitude, slope, offset } = bestFit;
+    evaluate = (gateCount) => amplitude * Math.exp(slope * ((gateCount - xCenter) / xScale)) + offset;
+    const offsetTerm = offset < 0
+      ? ` - ${formatNumber(Math.abs(offset))}`
+      : offset > 0 ? ` + ${formatNumber(offset)}` : '';
+    equation = `y = ${formatNumber(amplitude)}e^(${formatNumber(slope)}u)${offsetTerm}, u = (g - ${formatNumber(xCenter)}) / ${formatNumber(xScale)}`;
   } else {
     const degree = Math.min(2, distinctGateCounts - 1);
     const basis = normalizedX.map((value) => Array.from({ length: degree + 1 }, (_, power) => value ** power));
@@ -137,8 +169,8 @@ export const TrialHistoryModal = ({
   const chartData = fitData?.points ?? state.simulationHistory;
   const isSubmitMode = mode === 'submit';
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 p-4">
       <section
         role="dialog"
         aria-modal="true"
@@ -256,7 +288,7 @@ export const TrialHistoryModal = ({
                     : state.simulationHistory.every((trial) => trial.gateCount === state.simulationHistory[0].gateCount)
                       ? 'At least two different gate counts are needed for a fit.'
                       : fitType === 'exponential'
-                        ? 'Exponential fits require positive estimates.'
+                        ? 'A shifted exponential fit could not be calculated for these estimates.'
                         : 'A fit could not be calculated for these estimates.'}
                 </p>
               )}
@@ -363,6 +395,7 @@ export const TrialHistoryModal = ({
           </form>
         )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 };

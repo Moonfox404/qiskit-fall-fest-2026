@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGameState } from '../context/GameStateContext';
 import { runSimulation } from '../services/api';
-import { ResultsModal } from './ResultsModal';
+import { TrialHistoryModal } from './TrialHistoryModal';
 import { GAME_CONSTANTS } from '../config/constants';
 
 export const ControlPanel = () => {
@@ -106,9 +106,8 @@ export const ControlPanel = () => {
           </>
         )}
       </div>
-
       {showModal && (
-        <ResultsModal onClose={() => setShowModal(false)} />
+        <TrialHistoryModal onClose={() => setShowModal(false)} />
       )}
     </>
   );

@@ -475,6 +475,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         time: newTime,
         circuit: createLevelCircuit(nextIndex),
         circuitBlockCount: 1,
+        simulationHistory: [],
         lastSimulation: undefined,
         gameOver: nextLevel.max_time !== undefined && newTime >= nextLevel.max_time
       };
