@@ -20,6 +20,7 @@ const CircuitGate = ({
   index,
   qubitIndex,
   name,
+  isLocked,
   isSelected,
   onSelect,
   onRemove,
@@ -27,6 +28,7 @@ const CircuitGate = ({
   index: number;
   qubitIndex: number;
   name: string;
+  isLocked: boolean;
   isSelected: boolean;
   onSelect: () => void;
   onRemove: () => void;
@@ -34,6 +36,7 @@ const CircuitGate = ({
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `circuit-gate-${index}-q-${qubitIndex}`,
     data: { type: 'circuit-gate', sourceIndex: index, sourceQubitIndex: qubitIndex, name },
+    disabled: isLocked,
   });
 
   return (
@@ -42,18 +45,20 @@ const CircuitGate = ({
       style={{ transform: CSS.Translate.toString(transform) }}
       className={`relative w-12 group ${isDragging ? 'opacity-30' : ''}`}
     >
-      <div {...attributes} {...listeners} className="touch-none cursor-grab">
+      <div {...attributes} {...listeners} className={isLocked ? 'cursor-default' : 'touch-none cursor-grab'}>
         <GateElement name={name} isSelected={isSelected} onSelect={onSelect} />
       </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${name} gate`}
-        title={`Remove ${name} gate and refund $${GAME_CONSTANTS.GATE_COSTS[name as keyof typeof GAME_CONSTANTS.GATE_COSTS] ?? 0}`}
-        className="absolute -right-2 -top-2 z-30 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-game-text text-xs text-game-primary opacity-0 transition-opacity group-hover:opacity-100"
-      >
-        ×
-      </button>
+      {!isLocked && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${name} gate`}
+          title={`Remove ${name} gate and refund $${GAME_CONSTANTS.GATE_COSTS[name as keyof typeof GAME_CONSTANTS.GATE_COSTS] ?? 0}`}
+          className="absolute -right-2 -top-2 z-30 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-game-text text-xs text-game-primary opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 };
@@ -74,60 +79,177 @@ export const Wire = ({
     onSelectGate(null);
   };
 
+  const multiQubitGates = columns.flatMap((column, columnIndex) => column
+    .filter(({ gate }) => gate.qubits.length > 1)
+    .map(({ gate, index }) => ({ gate, index, columnIndex })));
+
   return (
-    <div className="flex flex-col gap-8 mt-6 overflow-x-auto min-h-[200px] pb-4">
-      {Array.from({ length: state.circuit.num_qubits }).map((_, qIndex) => {
+    <div className="mt-6 min-h-[200px] min-w-0 flex-1 overflow-auto pb-4">
+      <div
+        className="grid min-w-full"
+        style={{
+          gridTemplateColumns: `4rem repeat(${numCols - 1}, 5rem) minmax(5rem, 1fr)`,
+          gridTemplateRows: `repeat(${state.circuit.num_qubits}, 3rem)`,
+          width: `max(100%, ${4 + numCols * 5}rem)`,
+          justifyContent: 'start',
+          columnGap: 0,
+          rowGap: '2rem',
+          minWidth: 'max(100%, 9rem)',
+        }}
+      >
+        {Array.from({ length: state.circuit.num_qubits }, (_, qubitIndex) => (
+          <Fragment key={`wire-${qubitIndex}`}>
+            <div
+              className="z-10 flex h-12 items-center justify-center rounded-l-md bg-game-primary font-mono text-lg font-bold text-game-text/80"
+              style={{ gridColumn: 1, gridRow: qubitIndex + 1 }}
+            >
+              q[{qubitIndex}]
+            </div>
+            <div
+              className="relative z-0 h-12 rounded-r-md border-y border-r border-game-text/15 bg-game-primary/30"
+              style={{ gridColumn: '2 / -1', gridRow: qubitIndex + 1, width: '100%' }}
+            >
+              <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-game-text/30" />
+            </div>
+            {Array.from({ length: numCols }, (_, columnIndex) => {
+              const positionedGate = columnIndex < columns.length
+                ? columns[columnIndex].find(({ gate }) => gate.qubits.length === 1 && gate.qubits[0] === qubitIndex)
+                : undefined;
+              return (
+                <Fragment key={`q-${qubitIndex}-c-${columnIndex}`}>
+                  <div className="z-10 flex h-12 items-center justify-start pl-1" style={{ gridColumn: columnIndex + 2, gridRow: qubitIndex + 1 }}>
+                    <DropZone id={`q-${qubitIndex}-c-${columnIndex}`} />
+                  </div>
+                  {positionedGate && (
+                    <div className="z-20 flex h-12 items-center justify-center" style={{ gridColumn: columnIndex + 2, gridRow: qubitIndex + 1 }}>
+                      <CircuitGate
+                        index={positionedGate.index}
+                        qubitIndex={qubitIndex}
+                        name={positionedGate.gate.name}
+                        isLocked={positionedGate.gate.isLevelGate ?? false}
+                        isSelected={selectedGateIndex === positionedGate.index}
+                        onSelect={() => onSelectGate(positionedGate.index)}
+                        onRemove={() => handleRemoveGate(positionedGate.index)}
+                      />
+                    </div>
+                  )}
+                </Fragment>
+              );
+            })}
+          </Fragment>
+        ))}
+        {multiQubitGates.map(({ gate, index, columnIndex }) => (
+          <SpanningCircuitGate
+            key={`multi-gate-${index}`}
+            gate={gate}
+            columnIndex={columnIndex}
+            index={index}
+            numQubits={state.circuit.num_qubits}
+            isLocked={gate.isLevelGate ?? false}
+            isSelected={selectedGateIndex === index}
+            onSelect={() => onSelectGate(index)}
+            onRemove={() => handleRemoveGate(index)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const SpanningCircuitGate = ({
+  gate,
+  columnIndex,
+  index,
+  numQubits,
+  isLocked,
+  isSelected,
+  onSelect,
+  onRemove,
+}: {
+  gate: { name: string; qubits: number[] };
+  columnIndex: number;
+  index: number;
+  numQubits: number;
+  isLocked: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+}) => {
+  const firstQubit = Math.min(...gate.qubits);
+  const lastQubit = Math.max(...gate.qubits);
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: `circuit-gate-${index}-q-${gate.qubits[0]}`,
+    data: {
+      type: 'circuit-gate',
+      sourceIndex: index,
+      sourceQubitIndex: gate.qubits[0],
+      sourceColumnIndex: columnIndex,
+      isMultiQubit: true,
+      name: gate.name,
+    },
+    disabled: isLocked,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={onSelect}
+      style={{
+        gridColumn: columnIndex + 2,
+        gridRow: `1 / ${numQubits + 1}`,
+        gridTemplateRows: `repeat(${numQubits}, 3rem)`,
+        rowGap: '2rem',
+      }}
+      className={`pointer-events-none relative z-30 grid ${isSelected ? 'ring-2 ring-game-text' : ''}`}
+    >
+      {lastQubit > firstQubit && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute z-0 w-[2px] -translate-x-1/2 rounded-full bg-game-text shadow-[0_0_6px_rgba(255,255,255,0.65)]"
+          style={{
+            left: '50%',
+            top: `calc(1.5rem + ${firstQubit * 5}rem)`,
+            height: `${(lastQubit - firstQubit) * 5}rem`,
+          }}
+        />
+      )}
+      {Array.from({ length: numQubits }, (_, qubitIndex) => {
+        const isInput = gate.qubits.includes(qubitIndex);
+        const isControl = gate.qubits[0] === qubitIndex;
         return (
           <div
-            key={qIndex}
-            className="flex items-center h-12 relative"
+            key={qubitIndex}
+            style={{ gridRow: qubitIndex + 1 }}
+            className={`relative z-10 flex h-12 items-center justify-center ${isInput ? 'pointer-events-auto border-y border-game-accent/40 bg-game-primary/20' : 'pointer-events-none'}`}
           >
-            {/* Qubit Label */}
-            <div className="w-16 text-center font-mono font-bold text-lg text-game-text/80 bg-game-primary rounded-l-md h-full flex items-center justify-center">
-              q[{qIndex}]
-            </div>
-
-            {/* Wire Line & Gates Container */}
-            <div className="flex-1 relative flex items-center pl-4 bg-game-primary/30 rounded-r-md h-full border-y border-r border-game-text/15">
-              
-              {/* Background Wire Line */}
-              <div className="absolute left-0 right-0 h-0.5 bg-game-text/30 z-0" />
-              
-              {/* Drop Zones & Gates Interleaved */}
-              <div className="flex items-center">
-                {Array.from({ length: numCols }).map((__, colIndex) => {
-                  const positionedGate = colIndex < columns.length
-                    ? columns[colIndex].find(({ gate }) => gate.qubits.includes(qIndex))
-                    : undefined;
-                  const gate = positionedGate?.gate;
-
-                  return (
-                    <Fragment key={`c-${colIndex}`}>
-                      {/* Drop zone for this column on this wire */}
-                      <DropZone id={`q-${qIndex}-c-${colIndex}`} />
-
-                      {/* Render the gate or empty space if this column has a gate */}
-                      {colIndex < columns.length && (
-                        <div className="w-12 z-20 flex justify-center">
-                          {positionedGate ? (
-                            <CircuitGate
-                              index={positionedGate.index}
-                              qubitIndex={qIndex}
-                              name={positionedGate.gate.name}
-                              isSelected={selectedGateIndex === positionedGate.index}
-                              onSelect={() => onSelectGate(positionedGate.index)}
-                              onRemove={() => handleRemoveGate(positionedGate.index)}
-                            />
-                          ) : (
-                            <div className="w-12" />
-                          )}
-                        </div>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </div>
-            </div>
+            {isInput && (
+              <span
+                aria-label={`CNOT ${isControl ? 'control' : 'target'} on qubit ${qubitIndex}`}
+                className="group relative flex h-12 w-12 items-center justify-center"
+              >
+                {isControl ? (
+                  <span className="block h-3 w-3 rounded-full bg-game-text drop-shadow-[0_0_6px_rgba(52,211,153,0.95)]" />
+                ) : (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full border-[3px] border-game-text bg-game-primary text-game-text drop-shadow-[0_0_6px_rgba(253,224,71,0.95)]">
+                    <span className="-translate-y-px text-lg font-bold leading-none">+</span>
+                  </span>
+                )}
+                {isControl && !isLocked && (
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => { event.stopPropagation(); onRemove(); }}
+                    aria-label={`Remove ${gate.name} gate`}
+                    title={`Remove ${gate.name} gate and refund $${GAME_CONSTANTS.GATE_COSTS[gate.name as keyof typeof GAME_CONSTANTS.GATE_COSTS] ?? 0}`}
+                    className="absolute -right-2 -top-1 z-40 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-game-text text-xs text-game-primary opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            )}
           </div>
         );
       })}

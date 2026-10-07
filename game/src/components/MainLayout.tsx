@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
@@ -7,7 +7,7 @@ import { CircuitWorkspace } from './CircuitEditor/CircuitWorkspace';
 import { ControlPanel } from './ControlPanel';
 import { GameOverScreen } from './GameOverScreen';
 import { VictoryScreen } from './VictoryScreen';
-import { getCircuitBlockLayout, getCircuitColumnInsertionIndex, getCircuitCost, useGameState, type Gate } from '../context/GameStateContext';
+import { getCircuitBlockLayout, getCircuitColumnInsertionIndex, getCircuitColumns, getCircuitCost, useGameState, type Gate } from '../context/GameStateContext';
 import { GateElement } from './CircuitEditor/GateElement';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { GAME_CONSTANTS } from '../config/constants';
@@ -21,6 +21,7 @@ export const MainLayout = () => {
   const [selectedBlockIndex, setSelectedBlockIndex] = useState<number | null>(null);
   const [clipboardGate, setClipboardGate] = useState<Gate | null>(null);
   const [clipboardBlock, setClipboardBlock] = useState<Gate[] | null>(null);
+  const [pendingGate, setPendingGate] = useState<{ name: string; cost: number; index?: number; column?: number; qubits: number[] } | null>(null);
   const selectedGate = selectedGateIndex === null ? undefined : state.circuit.layout[selectedGateIndex];
   const circuitBlockCount = Math.max(0, state.circuitBlockCount ?? 1);
   const selectedBlock = selectedBlockIndex === null
@@ -105,13 +106,7 @@ export const MainLayout = () => {
         setClipboardGate({ ...selectedGate, qubits: [...selectedGate.qubits] });
       } else if (event.key.toLowerCase() === 'v' && canPasteGate && clipboardGate) {
         event.preventDefault();
-        dispatch({
-          type: 'ADD_GATE',
-          payload: {
-            gate: { ...clipboardGate, qubits: [...clipboardGate.qubits] },
-            cost: clipboardCost,
-          },
-        });
+        pasteGate();
       }
     };
 
@@ -134,6 +129,7 @@ export const MainLayout = () => {
   const handleDragEnd = (e: DragEndEvent) => {
     setActiveGate(null);
     const { active, over } = e;
+    const columns = getCircuitColumns(state.circuit.layout);
     
     if (over && over.id) {
       // Decode the id format: q-{qubitIndex}-c-{colIndex}
@@ -146,26 +142,38 @@ export const MainLayout = () => {
 
         if (gateData) {
           if (gateData.type === 'circuit-gate' && typeof gateData.sourceIndex === 'number') {
+            if (gateData.isMultiQubit && colIndex >= columns.length) return;
             dispatch({
               type: 'MOVE_GATE',
               payload: {
                 fromIndex: gateData.sourceIndex,
-                  toIndex: insertionIndex,
+                toIndex: insertionIndex,
                 fromQubitIndex: gateData.sourceQubitIndex,
-                toQubitIndex: qubitIndex,
+                toQubitIndex: gateData.isMultiQubit ? gateData.sourceQubitIndex : qubitIndex,
                 toColumnIndex: colIndex,
               },
             });
           } else {
-            dispatch({
-              type: 'ADD_GATE',
-              payload: {
-                gate: { name: gateData.name, qubits: [qubitIndex] },
+            const requiredQubits = GAME_CONSTANTS.GATE_QUBIT_COUNTS[gateData.name as keyof typeof GAME_CONSTANTS.GATE_QUBIT_COUNTS] ?? 1;
+            if (requiredQubits > 1) {
+              setPendingGate({
+                name: gateData.name,
                 cost: gateData.cost,
                 index: insertionIndex,
                 column: colIndex,
-              }
-            });
+                qubits: [qubitIndex],
+              });
+            } else {
+              dispatch({
+                type: 'ADD_GATE',
+                payload: {
+                  gate: { name: gateData.name, qubits: [qubitIndex] },
+                  cost: gateData.cost,
+                  index: insertionIndex,
+                  column: colIndex,
+                }
+              });
+            }
           }
           setSelectedGateIndex(null);
         }
@@ -177,7 +185,13 @@ export const MainLayout = () => {
   if (state.gameOver) return <GameOverScreen />;
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      modifiers={[({ active, transform }) => active?.data.current?.isMultiQubit ? { ...transform, y: 0 } : transform]}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       <div className="h-screen w-screen flex flex-col bg-game-primary text-game-text overflow-hidden relative">
         <TopBar />
         <div className="flex flex-1 overflow-hidden relative">
@@ -216,6 +230,71 @@ export const MainLayout = () => {
           </div>
         </div>
       </div>
+
+      {pendingGate && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPendingGate(null);
+        }}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gate-qubit-dialog-title"
+            className="w-full max-w-md rounded-lg border border-game-text/20 bg-game-card p-6 text-game-text shadow-2xl"
+          >
+            <h2 id="gate-qubit-dialog-title" className="text-xl font-bold">Choose {pendingGate.name} inputs</h2>
+            <p className="mt-2 text-sm text-game-text/70">Select {GAME_CONSTANTS.GATE_QUBIT_COUNTS[pendingGate.name as keyof typeof GAME_CONSTANTS.GATE_QUBIT_COUNTS]} qubits in order: first is the control, second is the target.</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              {Array.from({ length: state.circuit.num_qubits }, (_, qubitIndex) => {
+                const isSelected = pendingGate.qubits.includes(qubitIndex);
+                const maximumInputs = GAME_CONSTANTS.GATE_QUBIT_COUNTS[pendingGate.name as keyof typeof GAME_CONSTANTS.GATE_QUBIT_COUNTS];
+                return (
+                  <label key={qubitIndex} className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 transition-colors ${isSelected ? 'border-game-accent bg-game-accent/20' : 'border-game-text/15 bg-game-primary hover:bg-game-primary/70'}`}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      disabled={!isSelected && pendingGate.qubits.length >= maximumInputs}
+                      onChange={() => setPendingGate((current) => {
+                        if (!current) return current;
+                        return {
+                          ...current,
+                          qubits: isSelected
+                            ? current.qubits.filter((selectedQubit) => selectedQubit !== qubitIndex)
+                            : [...current.qubits, qubitIndex],
+                        };
+                      })}
+                      className="h-4 w-4 accent-game-accent"
+                    />
+                    <span className="font-mono">q[{qubitIndex}]</span>
+                    {isSelected && <span className="ml-auto text-xs text-game-text/60">{pendingGate.qubits.indexOf(qubitIndex) === 0 ? 'Control' : 'Target'}</span>}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setPendingGate(null)} className="rounded-md border border-game-text/20 px-4 py-2 hover:bg-game-primary">Cancel</button>
+              <button
+                type="button"
+                disabled={pendingGate.qubits.length !== GAME_CONSTANTS.GATE_QUBIT_COUNTS[pendingGate.name as keyof typeof GAME_CONSTANTS.GATE_QUBIT_COUNTS]}
+                onClick={() => {
+                  dispatch({
+                    type: 'ADD_GATE',
+                    payload: {
+                      gate: { name: pendingGate.name, qubits: pendingGate.qubits },
+                      cost: pendingGate.cost,
+                      index: pendingGate.index,
+                      column: pendingGate.column,
+                    },
+                  });
+                  setPendingGate(null);
+                }}
+                className="rounded-md bg-game-accent px-4 py-2 font-semibold text-game-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Add gate
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       
       <DragOverlay modifiers={[snapCenterToCursor]} dropAnimation={null} style={{ zIndex: 9999 }}>
         {activeGate?.type === 'circuit-gate' ? (

@@ -30,7 +30,7 @@ export const CircuitWorkspace = ({
   const blockRefund = getCircuitCost(getCircuitBlockLayout(state.circuit.layout, blockCount));
 
   return (
-    <div className="w-full h-full min-w-0 min-h-0 bg-game-card/80 border border-game-text/15 p-6 rounded-lg shadow-2xl backdrop-blur-sm">
+    <div className="flex h-full w-full min-w-0 min-h-0 flex-col bg-game-card/80 border border-game-text/15 p-6 rounded-lg shadow-2xl backdrop-blur-sm">
       <div className="mb-6 flex flex-wrap items-center justify-center gap-4">
         <h2 className="text-2xl font-bold text-center text-game-text">
           {showBlockDiagram ? 'Circuit Block Diagram' : 'Circuit Layout'}

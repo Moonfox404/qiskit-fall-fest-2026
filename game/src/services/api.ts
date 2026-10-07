@@ -22,7 +22,7 @@ export const runSimulation = async (
   const res = await fetch(`${API_BASE}/simulation?${params.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(circuit),
+    body: JSON.stringify(circuit, (key, value) => key === 'isLevelGate' ? undefined : value),
   });
   
   if (!res.ok) throw new Error('Simulation failed');
@@ -37,7 +37,7 @@ export const submitEvaluation = async (
   const res = await fetch(`${API_BASE}/evaluation?${params.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(circuit),
+    body: JSON.stringify(circuit, (key, value) => key === 'isLevelGate' ? undefined : value),
   });
   
   if (!res.ok) throw new Error('Evaluation failed');

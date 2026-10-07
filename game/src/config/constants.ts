@@ -11,6 +11,9 @@ export const GAME_CONSTANTS = {
     H: 50,
     CNOT: 100,
   },
+  GATE_QUBIT_COUNTS: {
+    CNOT: 2,
+  },
   GATE_STYLES: {
     X: 'bg-game-accent text-game-text',
     Y: 'bg-game-accent/80 text-game-text',

@@ -8,11 +8,19 @@ export interface Gate {
   name: string;
   qubits: number[];
   column?: number;
+  isLevelGate?: boolean;
 }
 
 export interface CircuitLayout {
   num_qubits: number;
   layout: Gate[];
+}
+
+export interface SimulationTrial {
+  trialNumber: number;
+  gateCount: number;
+  counts: Record<string, number>;
+  estimate: number;
 }
 
 // --- Game State Types ---
@@ -22,6 +30,7 @@ export interface GameState {
   levelIndex: number; // 0-indexed index into levelsData
   circuit: CircuitLayout;
   circuitBlockCount: number;
+  simulationHistory: SimulationTrial[];
   lastSimulation?: {
     counts: Record<string, number>;
     estimate: number;
@@ -94,13 +103,26 @@ export const getCircuitColumnInsertionIndex = (layout: Gate[], columnIndex: numb
   return nextColumn ? Math.min(...nextColumn.map(({ index }) => index)) : layout.length;
 };
 
+const createLevelCircuit = (levelIndex: number): CircuitLayout => {
+  const circuit = levelsData[levelIndex].circuit;
+  return {
+    ...circuit,
+    layout: circuit.layout.map((gate) => ({
+      ...gate,
+      qubits: [...gate.qubits],
+      isLevelGate: true,
+    })),
+  };
+};
+
 // --- Initial State ---
 const initialState: GameState = {
   money: GAME_CONSTANTS.STARTING_MONEY,
   time: GAME_CONSTANTS.STARTING_TIME,
   levelIndex: 0,
-  circuit: levelsData[0].circuit,
+  circuit: createLevelCircuit(0),
   circuitBlockCount: 1,
+  simulationHistory: [],
   gameOver: false,
   victory: false,
 };
@@ -119,6 +141,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newLayout = [...state.circuit.layout];
       const newGate = {
         ...action.payload.gate,
+        isLevelGate: false,
         column: action.payload.column ?? action.payload.gate.column,
       };
       if (action.payload.index !== undefined) {
@@ -143,6 +166,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (action.payload.index < 0 || action.payload.index >= state.circuit.layout.length) return state;
       const newLayout = [...state.circuit.layout];
       const [removedGate] = newLayout.splice(action.payload.index, 1);
+      if (removedGate.isLevelGate) return state;
       return {
         ...state,
         money: state.money + getCircuitCost([removedGate]),
@@ -162,6 +186,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         toIndex < 0 ||
         toIndex > state.circuit.layout.length
       ) return state;
+      if (state.circuit.layout[fromIndex].isLevelGate) return state;
 
       const newLayout = [...state.circuit.layout];
       const [movedGate] = newLayout.splice(fromIndex, 1);
@@ -203,6 +228,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const duplicateLayout = circuitBlock.map((gate, index) => ({
         ...gate,
         qubits: [...gate.qubits],
+        isLevelGate: false,
         column: columnOffset + (sourceColumnByIndex.get(index) ?? 0),
       }));
       const newMoney = state.money - getCircuitCost(duplicateLayout);
@@ -246,6 +272,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         money: newMoney,
         time: newTime,
         lastSimulation: action.payload.result,
+        simulationHistory: [
+          ...state.simulationHistory,
+          {
+            trialNumber: state.simulationHistory.length + 1,
+            gateCount: state.circuit.layout.length,
+            counts: { ...action.payload.result.counts },
+            estimate: action.payload.result.estimate,
+          },
+        ],
         gameOver: newMoney < 0 || (currentLevel.max_time !== undefined && newTime >= currentLevel.max_time)
       };
     }
@@ -265,7 +300,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         levelIndex: nextIndex,
         time: newTime,
-        circuit: nextLevel.circuit,
+        circuit: createLevelCircuit(nextIndex),
         circuitBlockCount: 1,
         lastSimulation: undefined,
         gameOver: nextLevel.max_time !== undefined && newTime >= nextLevel.max_time

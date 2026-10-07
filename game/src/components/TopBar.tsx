@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import { History } from 'lucide-react';
 import { useGameState } from '../context/GameStateContext';
 import levelsData from '../levels/levels.json';
 import { submitEvaluation } from '../services/api';
+import { TrialHistoryModal } from './TrialHistoryModal';
 
 export const TopBar = () => {
   const { state, dispatch } = useGameState();
   const [loading, setLoading] = useState(false);
+  const [showTrialHistory, setShowTrialHistory] = useState(false);
   const currentLevel = levelsData[state.levelIndex];
 
   const handleSubmit = async () => {
@@ -53,7 +56,17 @@ export const TopBar = () => {
           ${state.money}
         </div>
       </div>
-      <div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setShowTrialHistory(true)}
+          aria-label="View previous simulation trials"
+          title="View previous simulation trials"
+          className="flex items-center gap-2 rounded-md border border-game-text/15 bg-game-primary px-3 py-2 font-semibold text-game-text transition-colors hover:bg-game-accent/20"
+        >
+          <History size={18} />
+          <span>Trials ({state.simulationHistory.length})</span>
+        </button>
         <button 
           onClick={handleSubmit} 
           disabled={loading || !state.lastSimulation}
@@ -62,6 +75,7 @@ export const TopBar = () => {
           {loading ? 'Evaluating...' : 'Submit Circuit'}
         </button>
       </div>
+      {showTrialHistory && <TrialHistoryModal onClose={() => setShowTrialHistory(false)} />}
     </div>
   );
 };
