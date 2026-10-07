@@ -26,9 +26,9 @@ def simulate(
     Simulate the quantum circuit and return the simulation results.
     """
 
-    qiskit_circuit = qiskit_service.construct_circuit(circuit)
+    qiskit_circuits = qiskit_service.construct_circuit(circuit)
 
-    result = qiskit_service.simulate(qiskit_circuit, shots=shots, error_class="depolarizing_error", noise_params={"p": noise})
+    result = qiskit_service.simulate(qiskit_circuits, shots=shots, error_class="depolarizing_error", noise_params={"p": noise})
     return result
 
 
@@ -40,7 +40,7 @@ def compare_with_ideal(
     Compare the simulation results with the ideal results and return the evaluation metrics.
     """
 
-    qiskit_circuit = qiskit_service.construct_circuit(circuit)
+    qiskit_circuit = qiskit_service.construct_circuit(circuit)[0]
 
     result = qiskit_service.evaluate(qiskit_circuit, expectation=expectation)
     return result
