@@ -6,7 +6,7 @@ import { CircuitWorkspace } from './CircuitEditor/CircuitWorkspace';
 import { ControlPanel } from './ControlPanel';
 import { GameOverScreen } from './GameOverScreen';
 import { VictoryScreen } from './VictoryScreen';
-import { getCircuitBlockLayout, getCircuitColumnInsertionIndex, getCircuitColumns, getCircuitCost, useGameState, type Gate } from '../context/GameStateContext';
+import { getCircuitBlockLayout, getCircuitBoundaryColumns, getCircuitColumnInsertionIndex, getCircuitColumns, getCircuitCost, useGameState, type Gate } from '../context/GameStateContext';
 import { GateElement } from './CircuitEditor/GateElement';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { GAME_CONSTANTS } from '../config/constants';
@@ -44,7 +44,7 @@ export const MainLayout = () => {
     dispatch({
       type: 'ADD_GATE',
       payload: {
-        gate: { ...clipboardGate, qubits: [...clipboardGate.qubits] },
+        gate: { ...clipboardGate, qubits: [...clipboardGate.qubits], column: undefined, isLevelGate: false },
         cost: clipboardCost,
       },
     });
@@ -129,6 +129,7 @@ export const MainLayout = () => {
     setActiveGate(null);
     const { active, over } = e;
     const columns = getCircuitColumns(state.circuit.layout);
+    const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
     
     if (over && over.id) {
       // Decode the id format: q-{qubitIndex}-c-{colIndex}
@@ -140,6 +141,11 @@ export const MainLayout = () => {
         const gateData = active.data.current;
 
         if (gateData) {
+          if (
+            boundaryColumns.first !== undefined &&
+            boundaryColumns.last !== undefined &&
+            (colIndex <= boundaryColumns.first || colIndex > boundaryColumns.last)
+          ) return;
           if (gateData.type === 'palette-gate' && gateData.name === 'P') return;
           if (gateData.type === 'circuit-gate' && typeof gateData.sourceIndex === 'number') {
             if (gateData.isMultiQubit && colIndex >= columns.length) return;

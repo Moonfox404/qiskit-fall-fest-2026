@@ -5,7 +5,16 @@
     "max_reward": 500,
     "circuit": {
       "num_qubits": 3,
-      "layout": []
+      "layout": [
+        { "name": "H", "qubits": [0] },
+        { "name": "H", "qubits": [0] },
+        { "name": "H", "qubits": [0] },
+        { "name": "H", "qubits": [0] },
+        { "name": "H", "qubits": [1] },
+        { "name": "H", "qubits": [1] },
+        { "name": "H", "qubits": [1] },
+        { "name": "H", "qubits": [1] }
+      ]
     }
   },
   {
