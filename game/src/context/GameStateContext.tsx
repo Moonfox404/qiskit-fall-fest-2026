@@ -9,6 +9,7 @@ export interface Gate {
   qubits: number[];
   column?: number;
   isLevelGate?: boolean;
+  isBoundaryGate?: boolean;
   twirl?: boolean;
 }
 
@@ -98,6 +99,33 @@ export const getCircuitColumns = (layout: Gate[]) => {
   return columns;
 };
 
+export const getCircuitBoundaryColumns = (layout: Gate[]) => {
+  const columns = getCircuitColumns(layout);
+  const levelColumns = columns.flatMap((column, columnIndex) =>
+    column.some(({ gate }) => gate.isBoundaryGate ?? gate.isLevelGate) ? [columnIndex] : [],
+  );
+  return {
+    first: levelColumns[0],
+    last: levelColumns.at(-1),
+  };
+};
+
+const sortGatesByColumn = (layout: Gate[]) => layout
+  .map((gate, index) => ({ gate, index }))
+  .sort((left, right) =>
+    (left.gate.column ?? 0) - (right.gate.column ?? 0) || left.index - right.index,
+  )
+  .map(({ gate }) => gate);
+
+export const isGateInBoundaryColumn = (layout: Gate[], gateIndex: number) => {
+  if (gateIndex < 0 || gateIndex >= layout.length) return false;
+  if (layout[gateIndex].isBoundaryGate) return true;
+  const columns = getCircuitColumns(layout);
+  const gateColumn = columns.findIndex((column) => column.some(({ index }) => index === gateIndex));
+  const boundaryColumns = getCircuitBoundaryColumns(layout);
+  return gateColumn === boundaryColumns.first || gateColumn === boundaryColumns.last;
+};
+
 export const getCircuitColumnInsertionIndex = (layout: Gate[], columnIndex: number) => {
   const columns = getCircuitColumns(layout);
   const column = columns[columnIndex];
@@ -107,16 +135,89 @@ export const getCircuitColumnInsertionIndex = (layout: Gate[], columnIndex: numb
   return nextColumn ? Math.min(...nextColumn.map(({ index }) => index)) : layout.length;
 };
 
+const shiftCircuitColumnsForInsertion = (
+  layout: Gate[],
+  startColumn: number,
+  qubits: number[],
+) => {
+  const columns = getCircuitColumns(layout);
+  const boundaryColumns = getCircuitBoundaryColumns(layout);
+  const columnByGateIndex = new Map<number, number>();
+  columns.forEach((column, columnIndex) => {
+    column.forEach(({ index }) => columnByGateIndex.set(index, columnIndex));
+  });
+  const shiftedGateIndexes = new Set<number>();
+  const affectedQubits = new Set(qubits);
+  const isBoundaryGate = (gate: Gate) => gate.isBoundaryGate ?? gate.isLevelGate ?? false;
+
+  if (startColumn === boundaryColumns.last) {
+    columns[startColumn]?.forEach(({ gate, index }) => {
+      if (isBoundaryGate(gate)) shiftedGateIndexes.add(index);
+    });
+  }
+
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    layout.forEach((gate, index) => {
+      const column = columnByGateIndex.get(index) ?? startColumn;
+      if (column < startColumn || shiftedGateIndexes.has(index)) return;
+      if (!gate.qubits.some((qubitIndex) => affectedQubits.has(qubitIndex))) return;
+
+      shiftedGateIndexes.add(index);
+      gate.qubits.forEach((qubitIndex) => {
+        if (!affectedQubits.has(qubitIndex)) {
+          affectedQubits.add(qubitIndex);
+          expanded = true;
+        }
+      });
+
+      if (column === boundaryColumns.last && isBoundaryGate(gate)) {
+        columns[column].forEach(({ gate: alignedGate, index: alignedIndex }) => {
+          if (isBoundaryGate(alignedGate) && !shiftedGateIndexes.has(alignedIndex)) {
+            shiftedGateIndexes.add(alignedIndex);
+            expanded = true;
+          }
+        });
+      }
+
+      expanded = true;
+    });
+  }
+
+  return layout.map((gate, index) => {
+    const column = columnByGateIndex.get(index) ?? startColumn;
+    return { ...gate, column: column + (shiftedGateIndexes.has(index) ? 1 : 0) };
+  });
+};
+
 const createLevelCircuit = (levelIndex: number): CircuitLayout => {
   const circuit = levelsData[levelIndex].circuit;
+  const starterLayout = circuit.layout.map((gate) => ({
+    ...gate,
+    qubits: [...gate.qubits],
+    isLevelGate: true,
+    twirl: false,
+  }));
+  const starterColumns = getCircuitColumns(starterLayout);
+  const columnByGateIndex = new Map<number, number>();
+  starterColumns.forEach((column, columnIndex) => {
+    column.forEach(({ index }) => columnByGateIndex.set(index, columnIndex));
+  });
+  const firstStarterColumn = starterColumns.findIndex((column) => column.length > 0);
+  const lastStarterColumn = starterColumns.findLastIndex((column) => column.length > 0);
+  const boundaryGateIndexes = new Set([
+    ...(starterColumns[firstStarterColumn] ?? []).map(({ index }) => index),
+    ...(starterColumns[lastStarterColumn] ?? []).map(({ index }) => index),
+  ]);
+
   return {
     ...circuit,
-    layout: circuit.layout.map((gate) => ({
+    layout: sortGatesByColumn(starterLayout.map((gate, index) => ({
       ...gate,
-      qubits: [...gate.qubits],
-      isLevelGate: true,
-      twirl: false,
-    })),
+      column: columnByGateIndex.get(index) ?? 0,
+      isBoundaryGate: boundaryGateIndexes.has(index),
+    }))),
   };
 };
 
@@ -143,18 +244,30 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
   switch (action.type) {
     case 'ADD_GATE': {
-      const newLayout = [...state.circuit.layout];
+      const existingColumns = getCircuitColumns(state.circuit.layout);
+      const insertionColumn = action.payload.column ?? action.payload.gate.column ?? existingColumns.length;
+      const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
+      if (
+        boundaryColumns.first !== undefined &&
+        boundaryColumns.last !== undefined &&
+        (insertionColumn <= boundaryColumns.first || insertionColumn > boundaryColumns.last)
+      ) return state;
+
+      const insertionIndex = action.payload.index ?? getCircuitColumnInsertionIndex(state.circuit.layout, insertionColumn);
+      const newLayout = shiftCircuitColumnsForInsertion(
+        state.circuit.layout,
+        insertionColumn,
+        action.payload.gate.qubits,
+      );
       const newGate = {
         ...action.payload.gate,
         isLevelGate: false,
+        isBoundaryGate: false,
         twirl: action.payload.gate.twirl ?? false,
-        column: action.payload.column ?? action.payload.gate.column,
+        column: insertionColumn,
       };
-      if (action.payload.index !== undefined) {
-        newLayout.splice(action.payload.index, 0, newGate);
-      } else {
-        newLayout.push(newGate);
-      }
+      newLayout.splice(insertionIndex, 0, newGate);
+      const sortedLayout = sortGatesByColumn(newLayout);
       
       const newMoney = state.money - action.payload.cost;
       return {
@@ -162,7 +275,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         money: newMoney,
         circuit: {
           ...state.circuit,
-          layout: newLayout,
+          layout: sortedLayout,
         },
         circuitBlockCount: 1,
         gameOver: newMoney < 0
@@ -170,7 +283,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'TWIRL_GATE': {
       if (action.payload.index < 0 || action.payload.index >= state.circuit.layout.length) return state;
-      if (state.circuit.layout[action.payload.index].twirl) return state;
+      if (state.circuit.layout[action.payload.index].twirl || state.circuit.layout[action.payload.index].isBoundaryGate) return state;
+      const columns = getCircuitColumns(state.circuit.layout);
+      const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
+      const gateColumn = columns.findIndex((column) => column.some(({ index }) => index === action.payload.index));
+      if (gateColumn === boundaryColumns.first || gateColumn === boundaryColumns.last) return state;
 
       const newMoney = state.money - action.payload.cost;
       const newLayout = [...state.circuit.layout];
@@ -200,6 +317,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'REMOVE_GATE': {
       if (action.payload.index < 0 || action.payload.index >= state.circuit.layout.length) return state;
+      if (isGateInBoundaryColumn(state.circuit.layout, action.payload.index)) return state;
       const newLayout = [...state.circuit.layout];
       const [removedGate] = newLayout.splice(action.payload.index, 1);
       if (removedGate.isLevelGate) return state;
@@ -222,27 +340,46 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         toIndex < 0 ||
         toIndex > state.circuit.layout.length
       ) return state;
-      if (state.circuit.layout[fromIndex].isLevelGate) return state;
+      if (state.circuit.layout[fromIndex].isLevelGate || isGateInBoundaryColumn(state.circuit.layout, fromIndex)) return state;
 
-      const newLayout = [...state.circuit.layout];
-      const [movedGate] = newLayout.splice(fromIndex, 1);
+      const targetColumn = action.payload.toColumnIndex;
+      const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
+      if (
+        boundaryColumns.first !== undefined &&
+        boundaryColumns.last !== undefined &&
+        (targetColumn <= boundaryColumns.first || targetColumn > boundaryColumns.last)
+      ) return state;
+
+      const movedGate = state.circuit.layout[fromIndex];
       const qubitOffset = action.payload.toQubitIndex - action.payload.fromQubitIndex;
       const movedQubits = movedGate.qubits.map((qubitIndex) => qubitIndex + qubitOffset);
       if (movedQubits.some((qubitIndex) => qubitIndex < 0 || qubitIndex >= state.circuit.num_qubits)) return state;
 
-      const insertionIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
-      if (insertionIndex === fromIndex && qubitOffset === 0) return state;
+      const sourceColumn = getCircuitColumns(state.circuit.layout).findIndex((column) =>
+        column.some(({ index }) => index === fromIndex),
+      );
+      if (sourceColumn === targetColumn && qubitOffset === 0) return state;
+
+      const originalInsertionIndex = getCircuitColumnInsertionIndex(state.circuit.layout, targetColumn);
+      const insertionIndex = originalInsertionIndex > fromIndex ? originalInsertionIndex - 1 : originalInsertionIndex;
+      const layoutWithoutMovedGate = state.circuit.layout.filter((_, index) => index !== fromIndex);
+      const newLayout = shiftCircuitColumnsForInsertion(
+        layoutWithoutMovedGate,
+        targetColumn,
+        movedQubits,
+      );
       newLayout.splice(insertionIndex, 0, {
         ...movedGate,
         qubits: movedQubits,
-        column: action.payload.toColumnIndex,
+        column: targetColumn,
       });
+      const sortedLayout = sortGatesByColumn(newLayout);
 
       return {
         ...state,
         circuit: {
           ...state.circuit,
-          layout: newLayout,
+          layout: sortedLayout,
         },
         circuitBlockCount: 1,
         lastSimulation: undefined,
@@ -265,6 +402,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...gate,
         qubits: [...gate.qubits],
         isLevelGate: false,
+        isBoundaryGate: false,
         column: columnOffset + (sourceColumnByIndex.get(index) ?? 0),
       }));
       const newMoney = state.money - getCircuitCost(duplicateLayout);
@@ -338,6 +476,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         time: newTime,
         circuit: createLevelCircuit(nextIndex),
         circuitBlockCount: 1,
+        simulationHistory: [],
         lastSimulation: undefined,
         gameOver: nextLevel.max_time !== undefined && newTime >= nextLevel.max_time
       };

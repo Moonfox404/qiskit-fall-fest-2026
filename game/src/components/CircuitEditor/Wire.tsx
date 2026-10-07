@@ -1,17 +1,17 @@
-import { getCircuitColumns, useGameState } from '../../context/GameStateContext';
+import { getCircuitBoundaryColumns, getCircuitColumns, useGameState } from '../../context/GameStateContext';
 import { GateElement } from './GateElement';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Fragment } from 'react';
 import { GAME_CONSTANTS } from '../../config/constants';
 
-const DropZone = ({ id }: { id: string }) => {
-  const { isOver, setNodeRef } = useDroppable({ id });
+const DropZone = ({ id, disabled = false }: { id: string; disabled?: boolean }) => {
+  const { isOver, setNodeRef } = useDroppable({ id, disabled });
   
   return (
     <div
       ref={setNodeRef}
-      className={`w-8 h-12 rounded-md z-10 transition-colors duration-200 border border-transparent ${isOver ? 'bg-game-accent/30 border-game-accent' : 'bg-game-primary/60 hover:bg-game-accent/10'}`}
+      className={`w-8 h-12 rounded-md z-10 transition-colors duration-200 border ${disabled ? 'cursor-not-allowed border-game-text/20 bg-game-primary/30' : isOver ? 'border-game-accent bg-game-accent/30' : 'border-transparent bg-game-primary/60 hover:bg-game-accent/10'}`}
     />
   );
 };
@@ -87,6 +87,7 @@ export const Wire = ({
 }) => {
   const { state, dispatch } = useGameState();
   const columns = getCircuitColumns(state.circuit.layout);
+  const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
   const numCols = columns.length + 1; // +1 to allow inserting at the end
 
   const handleRemoveGate = (index: number) => {
@@ -114,8 +115,25 @@ export const Wire = ({
           columnGap: 0,
           rowGap: '2rem',
           minWidth: 'max(100%, 9rem)',
+          position: 'relative',
         }}
       >
+        {boundaryColumns.first !== undefined && (
+          <div
+            aria-label="First circuit layer boundary"
+            title="First circuit layer boundary"
+            className="pointer-events-none z-50 w-0 border-l-2 border-dashed border-rose-400/80"
+            style={{ gridColumn: boundaryColumns.first + 3, gridRow: '1 / -1', justifySelf: 'start' }}
+          />
+        )}
+        {boundaryColumns.last !== undefined && (
+          <div
+            aria-label="Last circuit layer boundary"
+            title="Last circuit layer boundary"
+            className="pointer-events-none z-50 w-0 border-l-2 border-dashed border-rose-400/80"
+            style={{ gridColumn: boundaryColumns.last + 2, gridRow: '1 / -1', justifySelf: 'start' }}
+          />
+        )}
         {Array.from({ length: state.circuit.num_qubits }, (_, qubitIndex) => (
           <Fragment key={`wire-${qubitIndex}`}>
             <div
@@ -137,7 +155,10 @@ export const Wire = ({
               return (
                 <Fragment key={`q-${qubitIndex}-c-${columnIndex}`}>
                   <div className="z-10 flex h-12 items-center justify-start pl-1" style={{ gridColumn: columnIndex + 2, gridRow: qubitIndex + 1 }}>
-                    <DropZone id={`q-${qubitIndex}-c-${columnIndex}`} />
+                    <DropZone
+                      id={`q-${qubitIndex}-c-${columnIndex}`}
+                      disabled={boundaryColumns.first !== undefined && boundaryColumns.last !== undefined && (columnIndex <= boundaryColumns.first || columnIndex > boundaryColumns.last)}
+                    />
                   </div>
                   {positionedGate && (
                     <div className="z-20 flex h-12 w-20 items-center justify-center" style={{ gridColumn: columnIndex + 2, gridRow: qubitIndex + 1 }}>
@@ -146,7 +167,7 @@ export const Wire = ({
                         qubitIndex={qubitIndex}
                         name={positionedGate.gate.name}
                         twirl={positionedGate.gate.twirl}
-                        isLocked={positionedGate.gate.isLevelGate ?? false}
+                        isLocked={Boolean(positionedGate.gate.isLevelGate) || columnIndex === boundaryColumns.first || columnIndex === boundaryColumns.last}
                         isSelected={selectedGateIndex === positionedGate.index}
                         onSelect={() => onSelectGate(positionedGate.index)}
                         onRemove={() => handleRemoveGate(positionedGate.index)}
@@ -166,7 +187,7 @@ export const Wire = ({
             columnIndex={columnIndex}
             index={index}
             numQubits={state.circuit.num_qubits}
-            isLocked={gate.isLevelGate ?? false}
+            isLocked={Boolean(gate.isLevelGate) || columnIndex === boundaryColumns.first || columnIndex === boundaryColumns.last}
             twirl={gate.twirl}
             isSelected={selectedGateIndex === index}
             onSelect={() => onSelectGate(index)}
