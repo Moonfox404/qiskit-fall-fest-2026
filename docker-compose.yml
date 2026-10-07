@@ -1,0 +1,38 @@
+services:
+  backend:
+    build: ./backend
+    container_name: qiskit_backend
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    command: uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /app/backend
+        - action: rebuild
+          path: ./backend/requirements.txt
+
+  frontend:
+    image: node:lts-slim
+    container_name: qiskit_frontend
+    working_dir: /app/game
+    volumes:
+      - ./game:/app/game
+    ports:
+      - "5173:5173"
+    command: >
+      sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    develop:
+      watch:
+        - action: sync
+          path: ./game/src
+          target: /app/game/src
+        - action: sync
+          path: ./game/public
+          target: /app/game/public
+
+
