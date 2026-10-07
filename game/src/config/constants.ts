@@ -9,12 +9,19 @@ export const GAME_CONSTANTS = {
     Y: 15,
     Z: 10,
     H: 50,
+    CNOT: 100,
+    P: 25,
   },
-  GATE_COLORS: {
-    X: '#4ade80', // Green
-    Y: '#60a5fa', // Blue
-    Z: '#f87171', // Red
-    H: '#c084fc', // Purple
-  }
+  GATE_QUBIT_COUNTS: {
+    CNOT: 2,
+  },
+  GATE_STYLES: {
+    X: 'bg-game-accent text-game-text',
+    Y: 'bg-game-accent/80 text-game-text',
+    Z: 'bg-game-accent/60 text-game-text',
+    H: 'bg-game-text text-game-primary',
+    CNOT: 'bg-game-accent/40 text-game-text',
+    P: 'bg-emerald-500 text-game-primary',
+  },
 };
 

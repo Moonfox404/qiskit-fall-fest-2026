@@ -1,10 +1,10 @@
 import { useDraggable } from '@dnd-kit/core';
 import { GAME_CONSTANTS } from '../../config/constants';
 
-const DraggableGate = ({ name, cost, color }: { name: string, cost: number, color: string }) => {
+const DraggableGate = ({ name, cost, gateStyle }: { name: string, cost: number, gateStyle: string }) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `palette-${name}`,
-    data: { name, cost, color },
+    data: { type: 'palette-gate', name, cost },
   });
 
   return (
@@ -12,8 +12,8 @@ const DraggableGate = ({ name, cost, color }: { name: string, cost: number, colo
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`p-3 text-white text-center cursor-grab rounded-md font-bold shadow-md hover:brightness-110 transition-all ${isDragging ? 'opacity-40' : 'opacity-100'}`}
-      style={{ backgroundColor: color, touchAction: 'none' }}
+      className={`p-3 ${gateStyle} text-center cursor-grab rounded-md font-bold shadow-md hover:brightness-110 transition-all ${isDragging ? 'opacity-40' : 'opacity-100'}`}
+      style={{ touchAction: 'none' }}
     >
       <div className="text-xl">{name}</div>
       <div className="text-sm font-normal opacity-80">${cost}</div>
@@ -25,7 +25,7 @@ export const GatePalette = () => {
   const gates = Object.entries(GAME_CONSTANTS.GATE_COSTS).map(([name, cost]) => ({
     name,
     cost,
-    color: GAME_CONSTANTS.GATE_COLORS[name as keyof typeof GAME_CONSTANTS.GATE_COLORS]
+    gateStyle: GAME_CONSTANTS.GATE_STYLES[name as keyof typeof GAME_CONSTANTS.GATE_STYLES],
   }));
 
   return (

@@ -14,6 +14,17 @@ export default {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    ({ addBase, theme }) => {
+      addBase({
+        ':root': {
+          '--game-text': theme('colors.game-text'),
+          '--game-accent': theme('colors.game-accent'),
+          '--game-primary': theme('colors.game-primary'),
+          '--game-card': theme('colors.game-card'),
+        },
+      });
+    },
+  ],
 }
 
