@@ -107,5 +107,7 @@
         ]
       }
     ]
-  }
+  },  
+  "noise_model": "",
+  "noise_params": {}
 }
