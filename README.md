@@ -5,6 +5,9 @@ Approach/solution -> puzzle game where the player attempts to mitigate the error
 
 React + Tailwind game that teaches quantum error mitigation through interactive circuit editing.
 
+Running the game:
+`docker compose up`
+
 Game concept
 - The player is presented with a sequence of levels, each containing a different quantum circuit challenge.
 - Each level gives the player a backend-supplied starting circuit and a goal: improve the circuit’s behavior using error mitigation strategies by adding, removing, or reordering gates.
