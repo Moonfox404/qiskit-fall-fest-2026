@@ -8,12 +8,6 @@ export interface SimulationResult {
   state_vector: Array<{ real: number; imag: number }>;
 }
 
-export interface EvaluationResult {
-  fidelity: number;
-  kl_divergence: number;
-  total_variation_distance: number;
-}
-
 export const runSimulation = async (
   circuit: CircuitLayout,
   shots: number,
@@ -30,17 +24,13 @@ export const runSimulation = async (
   return res.json();
 };
 
-export const submitEvaluation = async (
-  circuit: CircuitLayout,
-  expectation: number
-): Promise<EvaluationResult> => {
-  const params = new URLSearchParams({ expectation: String(expectation) });
-  const res = await fetch(`${API_BASE}/evaluation?${params.toString()}`, {
+export const getIdealExpectation = async (circuit: CircuitLayout): Promise<number> => {
+  const res = await fetch(`${API_BASE}/ideal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(circuit, (key, value) => ['isLevelGate', 'isBoundaryGate'].includes(key) ? undefined : value),
   });
   
-  if (!res.ok) throw new Error('Evaluation failed');
+  if (!res.ok) throw new Error('Could not retrieve ideal expectation');
   return res.json();
 };

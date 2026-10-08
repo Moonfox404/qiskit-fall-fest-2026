@@ -2,6 +2,7 @@
     "id": 2,
     "max_time": 15,
     "max_reward": 800,
+    "recommended_funding": 650,
     "circuit": {
       "num_qubits": 3,
       "layout": [

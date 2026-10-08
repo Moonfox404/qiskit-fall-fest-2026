@@ -17,5 +17,6 @@ export interface Level {
   id: number;
   max_time: number;
   max_reward: number;
+  recommended_funding: number;
   circuit: CircuitLayout;
 }
