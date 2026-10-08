@@ -9,6 +9,7 @@ export const GAME_CONSTANTS = {
     Y: 15,
     Z: 10,
     H: 50,
+    S: 25,
     CX: 100,
     P: 25,
   },
@@ -24,4 +25,6 @@ export const GAME_CONSTANTS = {
     P: 'bg-emerald-500 text-game-primary',
   },
 };
+
+
 
