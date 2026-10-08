@@ -490,6 +490,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         loadingLevel: action.payload,
       };
 
+    case 'LOAD_LEVEL':
+      return {
+        ...state,
+        levelId: action.payload.id,
+        currentLevel: action.payload,
+        circuit: createLevelCircuit(action.payload.circuit),
+        circuitBlockCount: 1,
+        simulationHistory: [],
+        lastSimulation: undefined,
+        loadingLevel: false,
+      };
+
     case 'VICTORY':
       return {
         ...state,
@@ -511,24 +523,30 @@ export const GameStateContext = createContext<GameContextType | undefined>(undef
 export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
-  // Load Level 1 when the game first starts
+  // Load the current level when the game starts or restarts.
   useEffect(() => {
+    if (state.currentLevel || state.victory || state.gameOver) return;
+
     const loadInitialLevel = async () => {
-      const level = await loadLevel(1);
+      dispatch({ type: 'SET_LEVEL_LOADING', payload: true });
+      try {
+        const level = await loadLevel(state.levelId);
 
-      if (!level) {
-        console.error('Level 1 could not be loaded.');
-        return;
+        if (!level) {
+          console.error(`Level ${state.levelId} could not be loaded.`);
+          dispatch({ type: 'SET_LEVEL_LOADING', payload: false });
+          return;
+        }
+
+        dispatch({ type: 'LOAD_LEVEL', payload: level });
+      } catch (error) {
+        console.error(`Level ${state.levelId} could not be loaded.`, error);
+        dispatch({ type: 'SET_LEVEL_LOADING', payload: false });
       }
-
-      dispatch({
-        type: 'LOAD_LEVEL',
-        payload: level,
-      });
     };
 
-    loadInitialLevel();
-  }, []);
+    void loadInitialLevel();
+  }, [state.currentLevel, state.gameOver, state.levelId, state.victory]);
 
   // Load the next level when the player completes the current level
   const goToNextLevel = async () => {
