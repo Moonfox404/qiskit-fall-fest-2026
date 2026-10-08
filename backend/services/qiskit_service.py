@@ -1,5 +1,3 @@
-import math
-
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import (
     Clifford,
@@ -36,10 +34,7 @@ def construct_circuit(
     if not twirled_gates:
         return [_build_circuit(circuit_layout)]
 
-    return [
-        _build_circuit(circuit_layout, twirl=True)
-        for _ in range(num_variants)
-    ]
+    return [_build_circuit(circuit_layout, twirl=True) for _ in range(num_variants)]
 
 
 def _build_circuit(circuit_layout: CircuitLayout, twirl: bool = False):
@@ -119,7 +114,9 @@ def simulate(
     for circuit in circuits:
         for instruction in circuit.data:
             if instruction.operation.name not in {"barrier", "measure", "reset"}:
-                gate_widths[instruction.operation.name] = instruction.operation.num_qubits
+                gate_widths[instruction.operation.name] = (
+                    instruction.operation.num_qubits
+                )
 
     configured_gate_names = params.get("gate_names")
     if configured_gate_names is None:
@@ -130,7 +127,9 @@ def simulate(
             or not configured_gate_names
             or not all(isinstance(name, str) for name in configured_gate_names)
         ):
-            raise ValueError("noise parameter 'gate_names' must be a non-empty list of names")
+            raise ValueError(
+                "noise parameter 'gate_names' must be a non-empty list of names"
+            )
         noisy_gate_names = {name.lower() for name in configured_gate_names}
         unknown_gate_names = noisy_gate_names - gate_widths.keys()
         if unknown_gate_names:
@@ -156,8 +155,7 @@ def simulate(
 
     base_shots, extra_shots = divmod(shots, len(transpiled_circuits))
     shots_per_circuit = [
-        base_shots + (index < extra_shots)
-        for index in range(len(transpiled_circuits))
+        base_shots + (index < extra_shots) for index in range(len(transpiled_circuits))
     ]
     grouped_circuits: dict[int, list[tuple[int, QuantumCircuit]]] = {}
     for index, (circuit, circuit_shots) in enumerate(
@@ -184,10 +182,13 @@ def simulate(
         for bitstring, count in counts_for_circuit.items():
             counts[bitstring] = counts.get(bitstring, 0) + count
 
-    expectation = sum(
-        (-1) ** bitstring.replace(" ", "").count("1") * count
-        for bitstring, count in counts.items()
-    ) / shots
+    expectation = (
+        sum(
+            (-1) ** bitstring.replace(" ", "").count("1") * count
+            for bitstring, count in counts.items()
+        )
+        / shots
+    )
 
     if statevector is None:
         raise RuntimeError("Simulator did not return a state vector")
@@ -214,14 +215,10 @@ def _get_quantum_error(error_class: str, params: dict, num_qubits: int):
                 "thermal_relaxation_error requires noise parameters: "
                 + ", ".join(sorted(missing_params))
             )
-        error = thermal_relaxation_error(
-            params["t1"], params["t2"], params["time"]
-        )
+        error = thermal_relaxation_error(params["t1"], params["t2"], params["time"])
         for _ in range(num_qubits - 1):
             error = error.tensor(
-                thermal_relaxation_error(
-                    params["t1"], params["t2"], params["time"]
-                )
+                thermal_relaxation_error(params["t1"], params["t2"], params["time"])
             )
         return error
 
@@ -235,12 +232,10 @@ def _get_quantum_error(error_class: str, params: dict, num_qubits: int):
     raise ValueError(f"Unsupported noise error class: {error_class}")
 
 
-def evaluate(circuit: QuantumCircuit, expectation: float):
+def get_ideal(circuit: QuantumCircuit):
     """
-    Compare an estimated Z-parity expectation with the ideal circuit result.
+    Get the ideal circuit result.
     """
-    if not math.isfinite(expectation) or not -1 <= expectation <= 1:
-        raise ValueError("expectation must be a finite value between -1 and 1")
 
     observable = SparsePauliOp("Z" * circuit.num_qubits)
     ideal_expectation = float(
@@ -248,41 +243,4 @@ def evaluate(circuit: QuantumCircuit, expectation: float):
     )
     ideal_expectation = min(1.0, max(-1.0, ideal_expectation))
 
-    ideal_probabilities = _parity_probabilities(ideal_expectation)
-    estimated_probabilities = _parity_probabilities(expectation)
-
-    # Smoothing keeps KL finite when either expectation is exactly +/-1.
-    epsilon = 1e-12
-    smoothed_ideal = _smooth_probabilities(ideal_probabilities, epsilon)
-    smoothed_estimated = _smooth_probabilities(estimated_probabilities, epsilon)
-
-    fidelity = sum(
-        math.sqrt(ideal * estimated)
-        for ideal, estimated in zip(ideal_probabilities, estimated_probabilities)
-    ) ** 2
-    kl_divergence = sum(
-        ideal * math.log(ideal / estimated)
-        for ideal, estimated in zip(smoothed_ideal, smoothed_estimated)
-    )
-    total_variation_distance = 0.5 * sum(
-        abs(ideal - estimated)
-        for ideal, estimated in zip(ideal_probabilities, estimated_probabilities)
-    )
-
-    return {
-        "fidelity": fidelity,
-        "kl_divergence": kl_divergence,
-        "total_variation_distance": total_variation_distance,
-    }
-
-
-def _parity_probabilities(expectation: float) -> tuple[float, float]:
-    return (1 + expectation) / 2, (1 - expectation) / 2
-
-
-def _smooth_probabilities(
-    probabilities: tuple[float, float], epsilon: float
-) -> tuple[float, float]:
-    smoothed = tuple(max(probability, epsilon) for probability in probabilities)
-    total = sum(smoothed)
-    return smoothed[0] / total, smoothed[1] / total
+    return ideal_expectation

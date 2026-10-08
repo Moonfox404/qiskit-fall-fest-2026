@@ -1,11 +1,9 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.circuit_layout import CircuitLayout
-from backend.models.evaluation_result import EvaluationResult
 from backend.models.simulation_result import SimulationResult
 from backend.services import qiskit_service
-
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -28,19 +26,22 @@ def simulate(
 
     qiskit_circuits = qiskit_service.construct_circuit(circuit)
 
-    result = qiskit_service.simulate(qiskit_circuits, shots=shots, error_class="depolarizing_error", noise_params={"p": noise})
+    result = qiskit_service.simulate(
+        qiskit_circuits,
+        shots=shots,
+        error_class="depolarizing_error",
+        noise_params={"p": noise},
+    )
     return result
 
 
-@app.post("/evaluation")
-def compare_with_ideal(
-    circuit: CircuitLayout, expectation: float
-) -> EvaluationResult:
+@app.post("/ideal")
+def get_ideal(circuit: CircuitLayout) -> float:
     """
-    Compare the simulation results with the ideal results and return the evaluation metrics.
+    Get the ideal results.
     """
 
     qiskit_circuit = qiskit_service.construct_circuit(circuit)[0]
 
-    result = qiskit_service.evaluate(qiskit_circuit, expectation=expectation)
+    result = qiskit_service.get_ideal(qiskit_circuit)
     return result

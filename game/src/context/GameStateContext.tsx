@@ -52,6 +52,7 @@ export type GameAction =
   | { type: 'REMOVE_CIRCUIT_BLOCK'; payload: { index: number } }
   | { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; expectation: number; state_vector: Array<{ real: number; imag: number }> } } }
   | { type: 'ADD_FUNDING'; payload: { amount: number } }
+  | { type: 'RETRY_LEVEL' }
   | { type: 'NEXT_LEVEL' }
   | { type: 'RESTART_GAME' };
 
@@ -462,6 +463,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         money: state.money + action.payload.amount,
+      };
+    case 'RETRY_LEVEL':
+      return {
+        ...state,
+        circuit: createLevelCircuit(state.levelIndex),
+        circuitBlockCount: 1,
+        simulationHistory: [],
+        lastSimulation: undefined,
       };
     case 'NEXT_LEVEL': {
       const nextIndex = state.levelIndex + 1;

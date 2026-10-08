@@ -3,6 +3,7 @@
     "id": 1,
     "max_time": 10,
     "max_reward": 500,
+    "recommended_funding": 400,
     "circuit": {
       "num_qubits": 3,
       "layout": []
@@ -12,6 +13,7 @@
     "id": 2,
     "max_time": 15,
     "max_reward": 800,
+    "recommended_funding": 650,
     "circuit": {
       "num_qubits": 3,
       "layout": [
@@ -23,6 +25,7 @@
     "id": 3,
     "max_time": 20,
     "max_reward": 1200,
+    "recommended_funding": 1000,
     "circuit": {
       "num_qubits": 4,
       "layout": [
@@ -32,4 +35,3 @@
     }
   }
 ]
-
