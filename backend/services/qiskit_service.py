@@ -81,7 +81,7 @@ def _build_circuit(circuit_layout: CircuitLayout, twirl: bool = False):
 
 
 def _validate_gate(gate_name: str, qubits: list[int], original_name: str):
-    gate_widths = {"x": 1, "y": 1, "z": 1, "h": 1, "cx": 2, "s": 1}
+    gate_widths = {"x": 1, "y": 1, "z": 1, "h": 1, "cx": 2, "s": 1, "sdg": 1}
     if gate_name not in gate_widths:
         raise ValueError(f"Unsupported quantum gate: {original_name}")
     if len(qubits) != gate_widths[gate_name]:
