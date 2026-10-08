@@ -17,6 +17,7 @@ from qiskit_aer.noise import (
 
 from backend.models.circuit_layout import CircuitLayout
 from backend.models.gate import Gate
+from backend.models.noise_model_config import NoiseModelConfig
 
 OPTIMISATION_LEVEL = 0
 NUM_PAULI_VARIANTS = 32
@@ -80,7 +81,7 @@ def _build_circuit(circuit_layout: CircuitLayout, twirl: bool = False):
 
 
 def _validate_gate(gate_name: str, qubits: list[int], original_name: str):
-    gate_widths = {"x": 1, "y": 1, "z": 1, "h": 1, "cx": 2}
+    gate_widths = {"x": 1, "y": 1, "z": 1, "h": 1, "cx": 2, "s": 1}
     if gate_name not in gate_widths:
         raise ValueError(f"Unsupported quantum gate: {original_name}")
     if len(qubits) != gate_widths[gate_name]:
@@ -108,8 +109,7 @@ def _append_pauli(circuit: QuantumCircuit, pauli: Pauli, qubits: list[int]):
 def simulate(
     circuits: list[QuantumCircuit],
     shots: int = 1024,
-    error_class: str = "depolarizing_error",
-    noise_params: dict | None = None,
+    noise_models: list[NoiseModelConfig | dict] | None = None,
 ):
     """
     Simulate a noisy circuit and return its measurement and statevector results.
@@ -120,13 +120,6 @@ def simulate(
         raise ValueError("shots must be at least the number of circuits")
 
     noise_model = NoiseModel()
-    params = noise_params or {}
-    if error_class not in {
-        "depolarizing_error",
-        "thermal_relaxation_error",
-        "coherent_unitary_error",
-    }:
-        raise ValueError(f"Unsupported noise error class: {error_class}")
 
     gate_widths: dict[str, int] = {}
     for circuit in circuits:
@@ -136,31 +129,51 @@ def simulate(
                     instruction.operation.num_qubits
                 )
 
-    configured_gate_names = params.get("gate_names")
-    if configured_gate_names is None:
-        noisy_gate_names = set(gate_widths)
-    else:
-        if (
-            not isinstance(configured_gate_names, (list, tuple))
-            or not configured_gate_names
-            or not all(isinstance(name, str) for name in configured_gate_names)
-        ):
-            raise ValueError(
-                "noise parameter 'gate_names' must be a non-empty list of names"
-            )
-        noisy_gate_names = {name.lower() for name in configured_gate_names}
-        unknown_gate_names = noisy_gate_names - gate_widths.keys()
-        if unknown_gate_names:
-            raise ValueError(
-                "Noise gate names not present in the circuit: "
-                + ", ".join(sorted(unknown_gate_names))
-            )
+    for configured_noise in noise_models or []:
+        if isinstance(configured_noise, NoiseModelConfig):
+            error_class = configured_noise.noise_model
+            params = configured_noise.noise_params
+        else:
+            error_class = configured_noise["noise_model"]
+            params = configured_noise.get("noise_params", {})
 
-    for gate_name, num_qubits in gate_widths.items():
-        if gate_name not in noisy_gate_names:
-            continue
-        error = _get_quantum_error(error_class, params, num_qubits)
-        noise_model.add_all_qubit_quantum_error(error, gate_name)
+        if error_class not in {
+            "depolarizing_error",
+            "thermal_relaxation_error",
+            "coherent_unitary_error",
+        }:
+            raise ValueError(f"Unsupported noise error class: {error_class}")
+
+        configured_gate_names = params.get("gate_names")
+        if configured_gate_names is None:
+            noisy_gate_names = set(gate_widths)
+        else:
+            if (
+                not isinstance(configured_gate_names, (list, tuple))
+                or not configured_gate_names
+                or not all(isinstance(name, str) for name in configured_gate_names)
+            ):
+                raise ValueError(
+                    "noise parameter 'gate_names' must be a non-empty list of names"
+                )
+            noisy_gate_names = {name.lower() for name in configured_gate_names}
+            unknown_gate_names = noisy_gate_names - gate_widths.keys()
+            if unknown_gate_names:
+                raise ValueError(
+                    "Noise gate names not present in the circuit: "
+                    + ", ".join(sorted(unknown_gate_names))
+                )
+
+        for gate_name, num_qubits in gate_widths.items():
+            if gate_name not in noisy_gate_names:
+                continue
+            error = _get_quantum_error(error_class, params, num_qubits)
+            if error.num_qubits != num_qubits:
+                raise ValueError(
+                    f"Noise model '{error_class}' creates a {error.num_qubits}-qubit "
+                    f"error, but gate '{gate_name}' requires {num_qubits} qubit(s)"
+                )
+            noise_model.add_all_qubit_quantum_error(error, gate_name)
 
     simulator = AerSimulator(method="statevector", noise_model=noise_model)
     pass_manager = generate_preset_pass_manager(OPTIMISATION_LEVEL, simulator)

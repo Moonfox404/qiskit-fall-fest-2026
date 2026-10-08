@@ -28,19 +28,14 @@ def simulate(
 
     qiskit_circuits = qiskit_service.construct_circuit(request.circuit)
 
-    # Use default noise if the level does not specify one
-    if not request.noise_model:
-        noise_model = "depolarizing_error"
-        noise_params = {"p": 0.5}
-    else:
-        noise_model = request.noise_model
-        noise_params = request.noise_params
+    noise_models = request.noise_models or [
+        {"noise_model": "depolarizing_error", "noise_params": {"p": 0.5}}
+    ]
 
     result = qiskit_service.simulate(
         qiskit_circuits,
         shots=shots,
-        error_class=noise_model,
-        noise_params=noise_params,
+        noise_models=noise_models,
     )
 
     return result

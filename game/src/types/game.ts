@@ -13,12 +13,16 @@ export interface CircuitLayout {
   layout: Gate[];
 }
 
+export interface NoiseModelConfig {
+  noise_model: string;
+  noise_params: Record<string, unknown>;
+}
+
 export interface Level {
   id: number;
   max_time: number;
   max_reward: number;
   recommended_funding: number;
-  noise_model?: string;
-  noise_params?: Record<string, unknown>;
+  noise_models?: NoiseModelConfig[];
   circuit: CircuitLayout;
 }
