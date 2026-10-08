@@ -1,23 +1,17 @@
 import type { Level } from '../types/game';
 
-const levelFiles = import.meta.glob('./*/*.json', { eager: true }) as Record<
-  string,
-  Level | { default: Level }
->;
+const levelFiles = import.meta.glob('./*/*.json');
 
 export const loadLevel = async (levelId: number): Promise<Level | null> => {
   const path = `./${levelId}/${levelId}.json`;
-  const importedLevel =
-    levelFiles[path] ??
-    Object.entries(levelFiles).find(([key]) => key.endsWith(`/${levelId}/${levelId}.json`))?.[1];
 
-  if (!importedLevel) {
+  const loader = levelFiles[path];
+
+  if (!loader) {
     return null;
   }
 
-  if ('default' in importedLevel) {
-    return importedLevel.default ?? null;
-  }
+  const module = await loader() as { default: Level };
 
-  return importedLevel ?? null;
+  return module.default;
 };
