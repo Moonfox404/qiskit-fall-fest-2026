@@ -17,7 +17,16 @@ export const ControlPanel = () => {
   const handleRun = async () => {
     setLoading(true);
     try {
-      const result = await runSimulation(state.circuit, shots, 0);
+      if (!state.currentLevel) {
+        return;
+      }
+
+      const result = await runSimulation(
+        state.circuit,
+        shots,
+        state.currentLevel.noise_model ?? '',
+        state.currentLevel.noise_params ?? {}
+      );
       dispatch({
         type: 'RUN_SIMULATION',
         payload: {

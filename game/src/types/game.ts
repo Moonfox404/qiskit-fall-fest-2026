@@ -18,5 +18,7 @@ export interface Level {
   max_time: number;
   max_reward: number;
   recommended_funding: number;
+  noise_model?: string;
+  noise_params?: Record<string, unknown>;
   circuit: CircuitLayout;
 }
