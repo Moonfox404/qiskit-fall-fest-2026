@@ -11,6 +11,7 @@ export const GAME_CONSTANTS = {
     H: 50,
     S: 25,
     CNOT: 100,
+    P: 25,
   },
   GATE_QUBIT_COUNTS: {
     CNOT: 2,
@@ -21,7 +22,7 @@ export const GAME_CONSTANTS = {
     Z: 'bg-game-accent/60 text-game-text',
     H: 'bg-game-text text-game-primary',
     CNOT: 'bg-game-accent/40 text-game-text',
-    S: 'bg-game-accent/50 text-game-text'
+    P: 'bg-emerald-500 text-game-primary',
   },
 };
 

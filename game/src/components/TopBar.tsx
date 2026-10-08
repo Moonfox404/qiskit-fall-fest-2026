@@ -1,35 +1,47 @@
 import { useState } from 'react';
 import { History } from 'lucide-react';
-import { useGameState } from '../context/GameStateContext';
-import levelsData from '../levels/levels.json';
+import { useGameState } from '../context/GameStateContext'; 
 import { submitEvaluation } from '../services/api';
 import { TrialHistoryModal } from './TrialHistoryModal';
 
 export const TopBar = () => {
-  const { state, dispatch } = useGameState();
+  const { state, dispatch, goToNextLevel } = useGameState();
   const [loading, setLoading] = useState(false);
   const [showTrialHistory, setShowTrialHistory] = useState(false);
-  const currentLevel = levelsData[state.levelIndex];
+  const [showSubmitScreen, setShowSubmitScreen] = useState(false);
+  const currentLevel = state.currentLevel;
 
-  const handleSubmit = async () => {
+  if (!currentLevel) {
+    return (
+      <div className="flex items-center p-4 bg-game-card border-b border-game-text/10">
+        Loading level...
+      </div>
+    );
+  }
+
+  const handleSubmit = async (interpretedResults: number) => {
     if (!state.lastSimulation) {
       alert("Run a simulation first to get an estimate!");
       return;
     }
     setLoading(true);
     try {
-      const result = await submitEvaluation(state.circuit, state.lastSimulation.estimate);
+      const result = await submitEvaluation(
+        currentLevel.circuit,
+        interpretedResults
+      );
       
       if (result.fidelity >= 0.8) {
         const funding = Math.floor(result.fidelity * currentLevel.max_reward);
         alert(
-          `Success! Level ${state.levelIndex + 1} Cleared!\n\n` +
+          `Success! Level ${state.levelId} Cleared!\n\n` +
           `Fidelity: ${result.fidelity.toFixed(3)}\n` +
           `KL Divergence: ${result.kl_divergence.toFixed(3)}\n\n` +
           `Funding Awarded: $${funding}`
         );
         dispatch({ type: 'ADD_FUNDING', payload: { amount: funding } });
-        dispatch({ type: 'NEXT_LEVEL' });
+        setShowSubmitScreen(false);
+        await goToNextLevel();
       } else {
         alert(
           `Level Failed!\n\n` +
@@ -48,7 +60,9 @@ export const TopBar = () => {
   return (
     <div className="flex justify-between items-center p-4 bg-game-card border-b border-game-text/10 shadow-md z-20 relative">
       <div className="flex gap-8">
-        <div className="text-xl font-bold">Level {state.levelIndex + 1}</div>
+        <div className="text-xl font-bold">
+          Level {state.levelId}
+        </div>
         <div className="text-lg">
           <span className="text-game-text/60">Time:</span> {state.time} {currentLevel.max_time ? `/ ${currentLevel.max_time}` : ''} hrs
         </div>
@@ -68,7 +82,7 @@ export const TopBar = () => {
           <span>Trials ({state.simulationHistory.length})</span>
         </button>
         <button 
-          onClick={handleSubmit} 
+          onClick={() => setShowSubmitScreen(true)}
           disabled={loading || !state.lastSimulation}
           className={`px-6 py-2 rounded-md font-bold text-game-text transition-colors ${state.lastSimulation ? 'bg-game-accent hover:bg-game-accent/80' : 'bg-game-primary text-game-text/40 cursor-not-allowed'}`}
         >
@@ -76,6 +90,14 @@ export const TopBar = () => {
         </button>
       </div>
       {showTrialHistory && <TrialHistoryModal onClose={() => setShowTrialHistory(false)} />}
+      {showSubmitScreen && (
+        <TrialHistoryModal
+          mode="submit"
+          isSubmitting={loading}
+          onSubmitResults={handleSubmit}
+          onClose={() => setShowSubmitScreen(false)}
+        />
+      )}
     </div>
   );
 };

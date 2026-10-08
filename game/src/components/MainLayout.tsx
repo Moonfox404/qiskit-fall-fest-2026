@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
-import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { CircuitWorkspace } from './CircuitEditor/CircuitWorkspace';
 import { ControlPanel } from './ControlPanel';
 import { GameOverScreen } from './GameOverScreen';
 import { VictoryScreen } from './VictoryScreen';
-import { getCircuitBlockLayout, getCircuitColumnInsertionIndex, getCircuitColumns, getCircuitCost, useGameState, type Gate } from '../context/GameStateContext';
+import { getCircuitBlockLayout, getCircuitBoundaryColumns, getCircuitColumnInsertionIndex, getCircuitColumns, getCircuitCost, useGameState} from '../context/GameStateContext';
+import type { Gate } from '../types/game';
 import { GateElement } from './CircuitEditor/GateElement';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { GAME_CONSTANTS } from '../config/constants';
@@ -45,7 +45,7 @@ export const MainLayout = () => {
     dispatch({
       type: 'ADD_GATE',
       payload: {
-        gate: { ...clipboardGate, qubits: [...clipboardGate.qubits] },
+        gate: { ...clipboardGate, qubits: [...clipboardGate.qubits], column: undefined, isLevelGate: false },
         cost: clipboardCost,
       },
     });
@@ -130,6 +130,7 @@ export const MainLayout = () => {
     setActiveGate(null);
     const { active, over } = e;
     const columns = getCircuitColumns(state.circuit.layout);
+    const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
     
     if (over && over.id) {
       // Decode the id format: q-{qubitIndex}-c-{colIndex}
@@ -141,6 +142,12 @@ export const MainLayout = () => {
         const gateData = active.data.current;
 
         if (gateData) {
+          if (
+            boundaryColumns.first !== undefined &&
+            boundaryColumns.last !== undefined &&
+            (colIndex <= boundaryColumns.first || colIndex > boundaryColumns.last)
+          ) return;
+          if (gateData.type === 'palette-gate' && gateData.name === 'P') return;
           if (gateData.type === 'circuit-gate' && typeof gateData.sourceIndex === 'number') {
             if (gateData.isMultiQubit && colIndex >= columns.length) return;
             dispatch({
@@ -167,7 +174,7 @@ export const MainLayout = () => {
               dispatch({
                 type: 'ADD_GATE',
                 payload: {
-                  gate: { name: gateData.name, qubits: [qubitIndex] },
+                      gate: { name: gateData.name, qubits: [qubitIndex], twirl: false },
                   cost: gateData.cost,
                   index: insertionIndex,
                   column: colIndex,
@@ -179,6 +186,21 @@ export const MainLayout = () => {
         }
       }
     }
+
+    const gateTarget = over?.data.current;
+    const draggedGate = active.data.current;
+    if (
+      gateTarget?.type === 'gate-target' &&
+      gateTarget.gateIndex !== undefined &&
+      draggedGate?.type === 'palette-gate' &&
+      draggedGate.name === 'P'
+    ) {
+      dispatch({
+        type: 'TWIRL_GATE',
+        payload: { index: gateTarget.gateIndex, cost: draggedGate.cost },
+      });
+      setSelectedGateIndex(null);
+    }
   };
 
   if (state.victory) return <VictoryScreen />;
@@ -187,7 +209,14 @@ export const MainLayout = () => {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={(args) => {
+        const collisions = pointerWithin(args);
+        if (args.active.data.current?.type !== 'palette-gate' || args.active.data.current.name !== 'P') return collisions;
+        const targetCollision = collisions.find(({ id }) =>
+          args.droppableContainers.find((container) => container.id === id)?.data.current?.type === 'gate-target',
+        );
+        return targetCollision ? [targetCollision] : collisions;
+      }}
       modifiers={[({ active, transform }) => active?.data.current?.isMultiQubit ? { ...transform, y: 0 } : transform]}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -279,7 +308,7 @@ export const MainLayout = () => {
                   dispatch({
                     type: 'ADD_GATE',
                     payload: {
-                      gate: { name: pendingGate.name, qubits: pendingGate.qubits },
+                      gate: { name: pendingGate.name, qubits: pendingGate.qubits, twirl: false },
                       cost: pendingGate.cost,
                       index: pendingGate.index,
                       column: pendingGate.column,
@@ -296,15 +325,25 @@ export const MainLayout = () => {
         </div>
       )}
       
-      <DragOverlay modifiers={[snapCenterToCursor]} dropAnimation={null} style={{ zIndex: 9999 }}>
+      <DragOverlay
+        modifiers={[({ transform, activatorEvent, activeNodeRect, overlayNodeRect }) => {
+          if (!(activatorEvent instanceof MouseEvent) || !activeNodeRect || !overlayNodeRect) return transform;
+          return {
+            ...transform,
+            x: transform.x + activatorEvent.clientX - activeNodeRect.left - overlayNodeRect.width / 2,
+            y: transform.y + activatorEvent.clientY - activeNodeRect.top - overlayNodeRect.height / 2,
+          };
+        }]}
+        dropAnimation={null}
+        style={{ zIndex: 9999 }}
+      >
         {activeGate?.type === 'circuit-gate' ? (
-          <div className="cursor-grabbing shadow-xl">
+          <div className="h-12 w-12 cursor-grabbing">
             <GateElement name={activeGate.name} />
           </div>
         ) : activeGate?.type === 'palette-gate' ? (
-          <div className={`cursor-grabbing rounded-md p-3 text-center font-bold shadow-xl ${GAME_CONSTANTS.GATE_STYLES[activeGate.name as keyof typeof GAME_CONSTANTS.GATE_STYLES]}`}>
-            <div className="text-xl">{activeGate.name}</div>
-            <div className="text-sm font-normal opacity-80">${activeGate.cost}</div>
+          <div className="h-12 w-12 cursor-grabbing">
+            <GateElement name={activeGate.name} />
           </div>
         ) : null}
       </DragOverlay>

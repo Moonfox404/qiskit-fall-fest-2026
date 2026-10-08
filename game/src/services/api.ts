@@ -1,10 +1,11 @@
-import type { CircuitLayout } from '../context/GameStateContext';
+import type { CircuitLayout } from '../types/game';
 
 const API_BASE = 'http://localhost:8000';
 
 export interface SimulationResult {
   counts: Record<string, number>;
-  estimate: number;
+  expectation: number;
+  state_vector: Array<{ real: number; imag: number }>;
 }
 
 export interface EvaluationResult {
@@ -22,7 +23,7 @@ export const runSimulation = async (
   const res = await fetch(`${API_BASE}/simulation?${params.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(circuit, (key, value) => key === 'isLevelGate' ? undefined : value),
+    body: JSON.stringify(circuit, (key, value) => ['isLevelGate', 'isBoundaryGate'].includes(key) ? undefined : value),
   });
   
   if (!res.ok) throw new Error('Simulation failed');
@@ -37,7 +38,7 @@ export const submitEvaluation = async (
   const res = await fetch(`${API_BASE}/evaluation?${params.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(circuit, (key, value) => key === 'isLevelGate' ? undefined : value),
+    body: JSON.stringify(circuit, (key, value) => ['isLevelGate', 'isBoundaryGate'].includes(key) ? undefined : value),
   });
   
   if (!res.ok) throw new Error('Evaluation failed');

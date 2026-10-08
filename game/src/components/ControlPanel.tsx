@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGameState } from '../context/GameStateContext';
 import { runSimulation } from '../services/api';
-import { ResultsModal } from './ResultsModal';
+import { TrialHistoryModal } from './TrialHistoryModal';
 import { GAME_CONSTANTS } from '../config/constants';
 
 export const ControlPanel = () => {
@@ -17,7 +17,7 @@ export const ControlPanel = () => {
   const handleRun = async () => {
     setLoading(true);
     try {
-      const result = await runSimulation(state.circuit, shots, 1);
+      const result = await runSimulation(state.circuit, shots, 0);
       dispatch({
         type: 'RUN_SIMULATION',
         payload: {
@@ -106,9 +106,8 @@ export const ControlPanel = () => {
           </>
         )}
       </div>
-
       {showModal && (
-        <ResultsModal onClose={() => setShowModal(false)} />
+        <TrialHistoryModal onClose={() => setShowModal(false)} />
       )}
     </>
   );

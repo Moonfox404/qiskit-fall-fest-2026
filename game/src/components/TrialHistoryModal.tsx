@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bar,
   BarChart,
@@ -59,21 +60,52 @@ const calculateFit = (trials: SimulationTrial[], fitType: FitType) => {
   let equation: string;
 
   if (fitType === 'exponential') {
-    if (sortedTrials.some((trial) => trial.estimate <= 0)) return null;
-    const logEstimates = sortedTrials.map((trial) => Math.log(trial.estimate));
-    const meanX = normalizedX.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
-    const meanLogEstimate = logEstimates.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
-    const variance = normalizedX.reduce((sum, value) => sum + (value - meanX) ** 2, 0);
-    if (variance === 0) return null;
-    const slope = normalizedX.reduce(
-      (sum, value, index) => sum + (value - meanX) * (logEstimates[index] - meanLogEstimate),
-      0,
-    ) / variance;
-    const intercept = meanLogEstimate - slope * meanX;
-    const slopePerGate = slope / xScale;
-    const amplitude = Math.exp(intercept - slopePerGate * xCenter);
-    evaluate = (gateCount) => Math.exp(intercept + slope * ((gateCount - xCenter) / xScale));
-    equation = `y = ${formatNumber(amplitude)}e^(${formatNumber(slopePerGate)}g)`;
+    const estimates = sortedTrials.map((trial) => trial.estimate);
+    const minEstimate = Math.min(...estimates);
+    const maxEstimate = Math.max(...estimates);
+    const estimateScale = Math.max(maxEstimate - minEstimate, Math.abs(minEstimate) * 0.1, 1e-6);
+    const minDistance = Math.max(estimateScale * 1e-7, Number.EPSILON * Math.max(1, Math.abs(minEstimate)));
+    const maxDistance = estimateScale * 1e5;
+    let bestFit: { amplitude: number; slope: number; offset: number; error: number } | null = null;
+
+    const tryOffset = (offset: number) => {
+      const shiftedEstimates = estimates.map((estimate) => estimate - offset);
+      if (shiftedEstimates.some((estimate) => estimate <= 0)) return;
+
+      const logEstimates = shiftedEstimates.map((estimate) => Math.log(estimate));
+      const meanX = normalizedX.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
+      const meanLogEstimate = logEstimates.reduce((sum, value) => sum + value, 0) / sortedTrials.length;
+      const variance = normalizedX.reduce((sum, value) => sum + (value - meanX) ** 2, 0);
+      if (variance === 0) return;
+      const slope = normalizedX.reduce(
+        (sum, value, index) => sum + (value - meanX) * (logEstimates[index] - meanLogEstimate),
+        0,
+      ) / variance;
+      const amplitude = Math.exp(meanLogEstimate - slope * meanX);
+      if (!Number.isFinite(amplitude) || !Number.isFinite(slope)) return;
+      const error = normalizedX.reduce((sum, value, index) => {
+        const residual = amplitude * Math.exp(slope * value) + offset - estimates[index];
+        return sum + residual * residual;
+      }, 0);
+      if (Number.isFinite(error) && (!bestFit || error < bestFit.error)) {
+        bestFit = { amplitude, slope, offset, error };
+      }
+    };
+
+    if (minEstimate > 0) tryOffset(0);
+    for (let step = 0; step <= 256; step += 1) {
+      const fraction = step / 256;
+      const distance = minDistance * (maxDistance / minDistance) ** fraction;
+      tryOffset(minEstimate - distance);
+    }
+
+    if (!bestFit) return null;
+    const { amplitude, slope, offset } = bestFit;
+    evaluate = (gateCount) => amplitude * Math.exp(slope * ((gateCount - xCenter) / xScale)) + offset;
+    const offsetTerm = offset < 0
+      ? ` - ${formatNumber(Math.abs(offset))}`
+      : offset > 0 ? ` + ${formatNumber(offset)}` : '';
+    equation = `y = ${formatNumber(amplitude)}e^(${formatNumber(slope)}u)${offsetTerm}, u = (g - ${formatNumber(xCenter)}) / ${formatNumber(xScale)}`;
   } else {
     const degree = Math.min(2, distinctGateCounts - 1);
     const basis = normalizedX.map((value) => Array.from({ length: degree + 1 }, (_, power) => value ** power));
@@ -110,17 +142,35 @@ const calculateFit = (trials: SimulationTrial[], fitType: FitType) => {
   };
 };
 
-export const TrialHistoryModal = ({ onClose }: { onClose: () => void }) => {
+export const TrialHistoryModal = ({
+  onClose,
+  mode = 'history',
+  isSubmitting = false,
+  onSubmitResults,
+}: {
+  onClose: () => void;
+  mode?: 'history' | 'submit';
+  isSubmitting?: boolean;
+  onSubmitResults?: (results: number) => void | Promise<void>;
+}) => {
   const { state } = useGameState();
+  const [resultsInput, setResultsInput] = useState(() => {
+    const estimates = state.simulationHistory.map((trial) => trial.estimate);
+    const averageEstimate = estimates.length > 0
+      ? estimates.reduce((sum, estimate) => sum + estimate, 0) / estimates.length
+      : 0;
+    return String(averageEstimate);
+  });
   const [selectedTrialNumber, setSelectedTrialNumber] = useState(state.simulationHistory.at(-1)?.trialNumber ?? null);
   const [fitType, setFitType] = useState<FitType>('none');
   const selectedTrialIndex = state.simulationHistory.findIndex((trial) => trial.trialNumber === selectedTrialNumber);
   const selectedTrial = state.simulationHistory.find((trial) => trial.trialNumber === selectedTrialNumber);
   const fitData = useMemo(() => calculateFit(state.simulationHistory, fitType), [fitType, state.simulationHistory]);
   const chartData = fitData?.points ?? state.simulationHistory;
+  const isSubmitMode = mode === 'submit';
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 p-4">
       <section
         role="dialog"
         aria-modal="true"
@@ -129,7 +179,7 @@ export const TrialHistoryModal = ({ onClose }: { onClose: () => void }) => {
       >
         <header className="mb-5 flex items-center justify-between border-b border-game-text/15 pb-4">
           <div>
-            <h2 id="trial-history-title" className="text-xl font-bold">Simulation trials</h2>
+            <h2 id="trial-history-title" className="text-xl font-bold">{isSubmitMode ? 'Submit circuit results' : 'Simulation trials'}</h2>
             <p className="mt-1 text-sm text-game-text/60">{state.simulationHistory.length} runs recorded</p>
           </div>
           <button
@@ -238,7 +288,7 @@ export const TrialHistoryModal = ({ onClose }: { onClose: () => void }) => {
                     : state.simulationHistory.every((trial) => trial.gateCount === state.simulationHistory[0].gateCount)
                       ? 'At least two different gate counts are needed for a fit.'
                       : fitType === 'exponential'
-                        ? 'Exponential fits require positive estimates.'
+                        ? 'A shifted exponential fit could not be calculated for these estimates.'
                         : 'A fit could not be calculated for these estimates.'}
                 </p>
               )}
@@ -305,7 +355,47 @@ export const TrialHistoryModal = ({ onClose }: { onClose: () => void }) => {
             </section>
           </div>
         )}
+        {isSubmitMode && (
+          <form
+            className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-game-text/15 pt-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const results = Number(resultsInput);
+              if (Number.isFinite(results)) void onSubmitResults?.(results);
+            }}
+          >
+            <label className="flex min-w-48 flex-1 flex-col gap-2 text-sm font-semibold text-game-text/80">
+              <span>Results:</span>
+              <input
+                type="number"
+                step="any"
+                value={resultsInput}
+                onChange={(event) => setResultsInput(event.target.value)}
+                disabled={isSubmitting}
+                className="w-full border border-game-text/20 bg-game-primary px-3 py-2 font-mono text-game-text outline-none focus:border-game-accent"
+              />
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="border border-game-text/20 px-4 py-2 text-game-text/80 transition-colors hover:bg-game-primary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || resultsInput.trim() === '' || !Number.isFinite(Number(resultsInput))}
+                className="bg-game-accent px-4 py-2 font-semibold text-game-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit results'}
+              </button>
+            </div>
+          </form>
+        )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 };
