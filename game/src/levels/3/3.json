@@ -1,0 +1,13 @@
+{
+    "id": 3,
+    "max_time": 20,
+    "max_reward": 1200,
+    "recommended_funding": 1000,
+    "circuit": {
+      "num_qubits": 4,
+      "layout": [
+        { "name": "X", "qubits": [1] },
+        { "name": "H", "qubits": [2] }
+      ]
+    }
+  }

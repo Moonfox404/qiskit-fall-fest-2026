@@ -17,7 +17,7 @@ export const GameOverScreen = () => {
         <div className="bg-game-primary p-6 rounded-lg mb-8 text-left">
           <h3 className="font-bold text-game-text mb-2">Final Stats:</h3>
           <ul className="text-game-text/60 space-y-2">
-            <li>Levels Completed: {state.levelIndex}</li>
+            <li>Levels Completed: {state.levelId}</li>
             <li>Remaining Funding: ${state.money}</li>
             <li>Time Elapsed: {state.time} hrs</li>
           </ul>

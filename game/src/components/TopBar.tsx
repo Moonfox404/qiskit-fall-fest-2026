@@ -1,33 +1,40 @@
 import { useState } from 'react';
 import { History } from 'lucide-react';
 import { useGameState } from '../context/GameStateContext';
-import levelsData from '../levels/levels.json';
 import { getIdealExpectation } from '../services/api';
 import { calculateExpectationAccuracy, calculateExpectationDistance, calculateFunding, calculateUncertainty } from '../scoring';
 import { LevelClearedScreen, type LevelClearMetrics } from './LevelClearedScreen';
 import { TrialHistoryModal } from './TrialHistoryModal';
 
 export const TopBar = () => {
-  const { state, dispatch } = useGameState();
+  const { state, dispatch, goToNextLevel } = useGameState();
   const [loading, setLoading] = useState(false);
   const [showTrialHistory, setShowTrialHistory] = useState(false);
   const [showSubmitScreen, setShowSubmitScreen] = useState(false);
   const [levelClearMetrics, setLevelClearMetrics] = useState<LevelClearMetrics | null>(null);
-  const currentLevel = levelsData[state.levelIndex];
+  const currentLevel = state.currentLevel;
+
+  if (!currentLevel) {
+    return (
+      <div className="flex items-center p-4 bg-game-card border-b border-game-text/10">
+        Loading level...
+      </div>
+    );
+  }
 
   const handleSubmit = async (interpretedResults: number) => {
     if (!state.lastSimulation) {
-      alert("Run a simulation first to get an estimate!");
+      alert('Run a simulation first to get an estimate!');
       return;
     }
     setLoading(true);
     try {
-      const idealExpectation = await getIdealExpectation(levelsData[state.levelIndex].circuit);
-
+      const idealExpectation = await getIdealExpectation(currentLevel.circuit);
       const uncertainty = calculateUncertainty(state.simulationHistory);
       const accuracy = calculateExpectationAccuracy(interpretedResults, idealExpectation);
       const distance = calculateExpectationDistance(interpretedResults, idealExpectation);
       const funding = Math.floor(calculateFunding(distance, uncertainty, currentLevel.max_reward));
+
       dispatch({ type: 'ADD_FUNDING', payload: { amount: funding } });
       setShowSubmitScreen(false);
       setLevelClearMetrics({
@@ -50,7 +57,7 @@ export const TopBar = () => {
   return (
     <div className="flex justify-between items-center p-4 bg-game-card border-b border-game-text/10 shadow-md z-20 relative">
       <div className="flex gap-8">
-        <div className="text-xl font-bold">Level {state.levelIndex + 1}</div>
+        <div className="text-xl font-bold">Level {state.levelId}</div>
         <div className="text-lg">
           <span className="text-game-text/60">Time:</span> {state.time} {currentLevel.max_time ? `/ ${currentLevel.max_time}` : ''} hrs
         </div>
@@ -88,8 +95,7 @@ export const TopBar = () => {
       )}
       {levelClearMetrics && (
         <LevelClearedScreen
-          levelNumber={state.levelIndex + 1}
-          isFinalLevel={state.levelIndex === levelsData.length - 1}
+          levelNumber={state.levelId}
           metrics={levelClearMetrics}
           onRetry={() => {
             setLevelClearMetrics(null);
@@ -97,7 +103,7 @@ export const TopBar = () => {
           }}
           onContinue={() => {
             setLevelClearMetrics(null);
-            dispatch({ type: 'NEXT_LEVEL' });
+            void goToNextLevel();
           }}
         />
       )}

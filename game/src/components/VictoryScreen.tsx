@@ -31,7 +31,7 @@ export const VictoryScreen = () => {
             </li>
             <li className="flex justify-between">
               <span>Levels Cleared:</span> 
-              <span>{state.levelIndex}</span>
+              <span>{state.levelId}</span>
             </li>
           </ul>
         </div>

@@ -10,13 +10,11 @@ export interface LevelClearMetrics {
 
 export const LevelClearedScreen = ({
   levelNumber,
-  isFinalLevel,
   metrics,
   onRetry,
   onContinue,
 }: {
   levelNumber: number;
-  isFinalLevel: boolean;
   metrics: LevelClearMetrics;
   onRetry: () => void;
   onContinue: () => void;
@@ -87,7 +85,7 @@ export const LevelClearedScreen = ({
             onClick={onContinue}
             className="rounded-md bg-game-accent px-5 py-3 font-semibold text-game-primary transition-colors hover:bg-game-accent/80"
           >
-            {isFinalLevel ? 'Finish game' : 'Continue to next level'}
+            Continue
           </button>
         </div>
       </section>
