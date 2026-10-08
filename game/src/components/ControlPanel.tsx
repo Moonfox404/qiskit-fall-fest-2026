@@ -24,8 +24,7 @@ export const ControlPanel = () => {
       const result = await runSimulation(
         state.circuit,
         shots,
-        state.currentLevel.noise_model ?? '',
-        state.currentLevel.noise_params ?? {}
+        state.currentLevel.noise_models
       );
       dispatch({
         type: 'RUN_SIMULATION',

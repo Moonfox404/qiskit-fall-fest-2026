@@ -132,6 +132,10 @@
       }
     ]
   },  
-  "noise_model": "depolarizing_error",
-  "noise_params": {"p": 0.05}
+  "noise_models": [
+    {
+      "noise_model": "depolarizing_error",
+      "noise_params": {"p": 0.05}
+    }
+  ]
 }

@@ -1,4 +1,4 @@
-import type { CircuitLayout } from '../types/game';
+import type { CircuitLayout, NoiseModelConfig } from '../types/game';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -11,26 +11,17 @@ export interface SimulationResult {
 export const runSimulation = async (
   circuit: CircuitLayout,
   shots: number,
-  noiseModel?: string | null,
-  noiseParams?: Record<string, unknown> | null
+  noiseModels?: NoiseModelConfig[] | null
 ): Promise<SimulationResult> => {
   const params = new URLSearchParams({
     shots: String(shots),
   });
 
-  const normalizedNoiseModel = typeof noiseModel === 'string' && noiseModel.trim()
-    ? noiseModel.trim()
-    : 'depolarizing_error';
-
-  const normalizedNoiseParams =
-    noiseParams && typeof noiseParams === 'object' && !Array.isArray(noiseParams) && Object.keys(noiseParams).length > 0
-      ? noiseParams
-      : { p: 0.5 };
-
   const payload = {
     circuit,
-    noise_model: normalizedNoiseModel,
-    noise_params: normalizedNoiseParams,
+    noise_models: noiseModels?.length
+      ? noiseModels
+      : [{ noise_model: 'depolarizing_error', noise_params: { p: 0.5 } }],
   };
 
   const res = await fetch(`${API_BASE}/simulation?${params.toString()}`, {
