@@ -71,3 +71,14 @@ export const getIdealExpectation = async (
 
   return res.json();
 };
+
+export const getInverseCircuit = async (circuit: CircuitLayout): Promise<CircuitLayout> => {
+  const res = await fetch(`${API_BASE}/inverse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(circuit, (key, value) => ['isLevelGate', 'isBoundaryGate'].includes(key) ? undefined : value),
+  });
+
+  if (!res.ok) throw new Error('Could not retrieve inverse circuit');
+  return res.json();
+};

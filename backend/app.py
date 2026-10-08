@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.circuit_layout import CircuitLayout
@@ -56,3 +56,14 @@ def get_ideal(circuit: CircuitLayout) -> float:
 
     result = qiskit_service.get_ideal(qiskit_circuit)
     return result
+
+
+@app.post("/inverse", response_model=CircuitLayout)
+def get_inverse(circuit: CircuitLayout) -> CircuitLayout:
+    """
+    Return the inverse circuit layout.
+    """
+    try:
+        return qiskit_service.invert_circuit(circuit)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error

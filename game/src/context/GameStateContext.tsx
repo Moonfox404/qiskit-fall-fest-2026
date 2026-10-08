@@ -37,8 +37,10 @@ export type GameAction =
   | { type: 'UNTWIRL_GATE'; payload: { index: number } }
   | { type: 'REMOVE_GATE'; payload: { index: number } }
   | { type: 'MOVE_GATE'; payload: { fromIndex: number; toIndex: number; fromQubitIndex: number; toQubitIndex: number; toColumnIndex: number } }
+  | { type: 'FOLD_GATE'; payload: { index: number; inverseGates: Gate[] } }
   | { type: 'DUPLICATE_CIRCUIT'; payload?: { gates?: Gate[] } }
   | { type: 'REMOVE_CIRCUIT_BLOCK'; payload: { index: number } }| { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; expectation: number; state_vector: Array<{ real: number; imag: number }> } } }
+  | { type: 'REFUND_ALL_PLAYER_GATES' }
   | { type: 'ADD_FUNDING'; payload: { amount: number } }
   | { type: 'RETRY_LEVEL' }
   | { type: 'LOAD_LEVEL'; payload: Level }
@@ -392,6 +394,60 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         lastSimulation: undefined,
       };
     }
+    case 'FOLD_GATE': {
+      if (action.payload.index < 0 || action.payload.index >= state.circuit.layout.length) return state;
+
+      const originalGate = state.circuit.layout[action.payload.index];
+      if (action.payload.inverseGates.length === 0) return state;
+
+      const columns = getCircuitColumns(state.circuit.layout);
+      const selectedColumn = columns.findIndex((column) =>
+        column.some(({ index }) => index === action.payload.index),
+      );
+      const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
+      const insertBeforeGate = selectedColumn === boundaryColumns.last;
+      const firstInsertedColumn = insertBeforeGate ? selectedColumn : selectedColumn + 1;
+      const addedGates = [
+        ...action.payload.inverseGates,
+        { ...originalGate, isLevelGate: false, isBoundaryGate: false },
+      ].map((gate) => ({
+        ...gate,
+        qubits: [...gate.qubits],
+        isLevelGate: false,
+        isBoundaryGate: false,
+      }));
+      const foldCost = getCircuitCost(addedGates);
+      const newMoney = state.money - foldCost;
+      if (newMoney < 0) return state;
+
+      let newLayout = state.circuit.layout;
+      for (let offset = 0; offset < addedGates.length; offset += 1) {
+        newLayout = shiftCircuitColumnsForInsertion(
+          newLayout,
+          firstInsertedColumn + offset,
+          originalGate.qubits,
+        );
+      }
+
+      const newGates = addedGates.map((gate, offset) => ({
+        ...gate,
+        column: firstInsertedColumn + offset,
+      }));
+      const insertionIndex = getCircuitColumnInsertionIndex(newLayout, firstInsertedColumn);
+      newLayout.splice(insertionIndex, 0, ...newGates);
+
+      return {
+        ...state,
+        money: newMoney,
+        circuit: {
+          ...state.circuit,
+          layout: sortGatesByColumn(newLayout),
+        },
+        circuitBlockCount: 1,
+        lastSimulation: undefined,
+        gameOver: false,
+      };
+    }
     case 'DUPLICATE_CIRCUIT': {
       const blockCount = Math.max(0, state.circuitBlockCount ?? 1);
       if (blockCount === 0) return state;
@@ -442,6 +498,26 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           layout: newLayout,
         },
         circuitBlockCount: blockCount - 1,
+        lastSimulation: undefined,
+      };
+    }
+    case 'REFUND_ALL_PLAYER_GATES': {
+      const playerAddedGates = state.circuit.layout.filter((gate) => !gate.isLevelGate);
+      const retainedGates = state.circuit.layout
+        .filter((gate) => gate.isLevelGate)
+        .map((gate) => ({ ...gate, twirl: false }));
+      const removedTwirlCount = state.circuit.layout.filter((gate) => gate.twirl).length;
+      const refund = getCircuitCost(playerAddedGates)
+        + removedTwirlCount * GAME_CONSTANTS.GATE_COSTS.P;
+
+      return {
+        ...state,
+        money: state.money + refund,
+        circuit: {
+          ...state.circuit,
+          layout: retainedGates,
+        },
+        circuitBlockCount: 1,
         lastSimulation: undefined,
       };
     }

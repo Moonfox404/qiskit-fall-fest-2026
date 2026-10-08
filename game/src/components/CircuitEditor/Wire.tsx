@@ -1,9 +1,11 @@
-import { getCircuitBoundaryColumns, getCircuitColumns, useGameState } from '../../context/GameStateContext';
+import { getCircuitBoundaryColumns, getCircuitColumns, getCircuitCost, useGameState } from '../../context/GameStateContext';
 import { GateElement } from './GateElement';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { Fragment } from 'react';
+import { Fragment, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { GAME_CONSTANTS } from '../../config/constants';
+import { getInverseCircuit } from '../../services/api';
 
 const DropZone = ({ id, disabled = false }: { id: string; disabled?: boolean }) => {
   const { isOver, setNodeRef } = useDroppable({ id, disabled });
@@ -26,6 +28,7 @@ const CircuitGate = ({
   onSelect,
   onRemove,
   onRemoveTwirl,
+  onContextMenu,
 }: {
   index: number;
   qubitIndex: number;
@@ -36,6 +39,7 @@ const CircuitGate = ({
   onSelect: () => void;
   onRemove: () => void;
   onRemoveTwirl: () => void;
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `circuit-gate-${index}-q-${qubitIndex}`,
@@ -58,7 +62,7 @@ const CircuitGate = ({
         className={`absolute left-4 top-0 h-12 w-12 ${isDragging ? 'opacity-30' : ''}`}
       >
         <div {...attributes} {...listeners} className={isLocked ? 'cursor-default' : 'touch-none cursor-grab'}>
-          <GateElement name={name} isSelected={isSelected} onSelect={onSelect} />
+          <GateElement name={name} isSelected={isSelected} onSelect={onSelect} onContextMenu={onContextMenu} />
         </div>
       </div>
       {twirl && <TwirlMarker side="left" onRemove={onRemoveTwirl} />}
@@ -86,6 +90,8 @@ export const Wire = ({
   onSelectGate: (index: number | null) => void;
 }) => {
   const { state, dispatch } = useGameState();
+  const [foldMenu, setFoldMenu] = useState<{ gateIndex: number; x: number; y: number } | null>(null);
+  const [isFolding, setIsFolding] = useState(false);
   const columns = getCircuitColumns(state.circuit.layout);
   const boundaryColumns = getCircuitBoundaryColumns(state.circuit.layout);
   const numCols = columns.length + 1; // +1 to allow inserting at the end
@@ -97,6 +103,52 @@ export const Wire = ({
 
   const handleRemoveTwirl = (index: number) => {
     dispatch({ type: 'UNTWIRL_GATE', payload: { index } });
+  };
+
+  const handleGateContextMenu = (gateIndex: number, event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setFoldMenu({ gateIndex, x: event.clientX, y: event.clientY });
+  };
+
+  const handleFoldGate = async () => {
+    if (!foldMenu) return;
+    const gate = state.circuit.layout[foldMenu.gateIndex];
+    if (!gate) {
+      setFoldMenu(null);
+      return;
+    }
+
+    setIsFolding(true);
+    try {
+      const inverseCircuit = await getInverseCircuit({
+        num_qubits: state.circuit.num_qubits,
+        layout: [{ name: gate.name, qubits: [...gate.qubits], twirl: false }],
+      });
+      const inverseGates = inverseCircuit.layout.map((inverseGate) => ({
+        ...inverseGate,
+        qubits: [...inverseGate.qubits],
+        twirl: false,
+      }));
+      const foldCost = getCircuitCost([...inverseGates, gate]);
+      if (state.money < foldCost) {
+        alert(`Folding this gate costs $${foldCost}, but you only have $${state.money}.`);
+        setFoldMenu(null);
+        return;
+      }
+
+      dispatch({
+        type: 'FOLD_GATE',
+        payload: { index: foldMenu.gateIndex, inverseGates },
+      });
+      setFoldMenu(null);
+    } catch (error) {
+      console.error(error);
+      alert('Could not fold gate. The inverse circuit could not be retrieved.');
+      setFoldMenu(null);
+    } finally {
+      setIsFolding(false);
+    }
   };
 
   const multiQubitGates = columns.flatMap((column, columnIndex) => column
@@ -172,6 +224,7 @@ export const Wire = ({
                         onSelect={() => onSelectGate(positionedGate.index)}
                         onRemove={() => handleRemoveGate(positionedGate.index)}
                         onRemoveTwirl={() => handleRemoveTwirl(positionedGate.index)}
+                        onContextMenu={(event) => handleGateContextMenu(positionedGate.index, event)}
                       />
                     </div>
                   )}
@@ -193,9 +246,41 @@ export const Wire = ({
             onSelect={() => onSelectGate(index)}
             onRemove={() => handleRemoveGate(index)}
             onRemoveTwirl={() => handleRemoveTwirl(index)}
+            onContextMenu={(event) => handleGateContextMenu(index, event)}
           />
         ))}
       </div>
+      {foldMenu && createPortal(
+        <div
+          className="fixed inset-0 z-[10020]"
+          onMouseDown={() => {
+            if (!isFolding) setFoldMenu(null);
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <div
+            role="menu"
+            aria-label="Gate actions"
+            className="fixed min-w-40 rounded-md border border-game-text/20 bg-game-card p-1 text-game-text shadow-xl"
+            style={{
+              left: Math.max(8, Math.min(foldMenu.x, window.innerWidth - 168)),
+              top: Math.max(8, Math.min(foldMenu.y, window.innerHeight - 56)),
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void handleFoldGate()}
+              disabled={isFolding}
+              className="w-full rounded px-3 py-2 text-left text-sm font-semibold hover:bg-game-accent/20 disabled:cursor-wait disabled:opacity-50"
+            >
+              {isFolding ? 'Folding gate...' : 'Fold gate'}
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 };
@@ -211,6 +296,7 @@ const SpanningCircuitGate = ({
   onSelect,
   onRemove,
   onRemoveTwirl,
+  onContextMenu,
 }: {
   gate: { name: string; qubits: number[] };
   columnIndex: number;
@@ -222,6 +308,7 @@ const SpanningCircuitGate = ({
   onSelect: () => void;
   onRemove: () => void;
   onRemoveTwirl: () => void;
+  onContextMenu: (event: MouseEvent<HTMLElement>) => void;
 }) => {
   const firstQubit = Math.min(...gate.qubits);
   const lastQubit = Math.max(...gate.qubits);
@@ -258,6 +345,7 @@ const SpanningCircuitGate = ({
         {...attributes}
         {...listeners}
         onClick={onSelect}
+        onContextMenu={onContextMenu}
         style={{
           gridRow: '1 / -1',
           gridTemplateRows: `repeat(${numQubits}, 3rem)`,
