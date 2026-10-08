@@ -40,6 +40,7 @@ export type GameAction =
   | { type: 'FOLD_GATE'; payload: { index: number; inverseGates: Gate[] } }
   | { type: 'DUPLICATE_CIRCUIT'; payload?: { gates?: Gate[] } }
   | { type: 'REMOVE_CIRCUIT_BLOCK'; payload: { index: number } }| { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; expectation: number; state_vector: Array<{ real: number; imag: number }> } } }
+  | { type: 'REFUND_ALL_PLAYER_GATES' }
   | { type: 'ADD_FUNDING'; payload: { amount: number } }
   | { type: 'RETRY_LEVEL' }
   | { type: 'LOAD_LEVEL'; payload: Level }
@@ -497,6 +498,26 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           layout: newLayout,
         },
         circuitBlockCount: blockCount - 1,
+        lastSimulation: undefined,
+      };
+    }
+    case 'REFUND_ALL_PLAYER_GATES': {
+      const playerAddedGates = state.circuit.layout.filter((gate) => !gate.isLevelGate);
+      const retainedGates = state.circuit.layout
+        .filter((gate) => gate.isLevelGate)
+        .map((gate) => ({ ...gate, twirl: false }));
+      const removedTwirlCount = state.circuit.layout.filter((gate) => gate.twirl).length;
+      const refund = getCircuitCost(playerAddedGates)
+        + removedTwirlCount * GAME_CONSTANTS.GATE_COSTS.P;
+
+      return {
+        ...state,
+        money: state.money + refund,
+        circuit: {
+          ...state.circuit,
+          layout: retainedGates,
+        },
+        circuitBlockCount: 1,
         lastSimulation: undefined,
       };
     }
