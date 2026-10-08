@@ -103,11 +103,35 @@
       {
         "name": "H",
         "qubits": [
+          0
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          1
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          2
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          3
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
           2
         ]
       }
     ]
   },  
-  "noise_model": "",
-  "noise_params": {}
+  "noise_model": "depolarizing_error",
+  "noise_params": {"p": 0.05}
 }
