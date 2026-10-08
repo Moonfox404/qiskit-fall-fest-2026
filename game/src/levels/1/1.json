@@ -1,10 +1,51 @@
 {
-    "id": 1,
-    "max_time": 10,
-    "max_reward": 500,
-    "recommended_funding": 400,
-    "circuit": {
-      "num_qubits": 3,
-      "layout": []
-    }
+"id": 1,
+  "max_time": 30,
+  "max_reward": 2000,
+  "recommended_funding": 1500,
+  "circuit": {
+    "num_qubits": 2,
+    "layout": [
+      {
+        "name": "H",
+        "qubits": [
+          0
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          0,
+          1
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          0,
+          1
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          0,
+          1
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          0,
+          1
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          0
+        ]
+      }
+    ]
   }
+}

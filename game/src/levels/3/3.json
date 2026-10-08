@@ -1,13 +1,167 @@
 {
-    "id": 3,
-    "max_time": 20,
-    "max_reward": 1200,
-    "recommended_funding": 1000,
-    "circuit": {
-      "num_qubits": 4,
-      "layout": [
-        { "name": "X", "qubits": [1] },
-        { "name": "H", "qubits": [2] }
-      ]
-    }
+"id": 3,
+  "max_time": 60,
+  "max_reward": 2500,
+  "recommended_funding": 2000,
+  "circuit": {
+    "num_qubits": 4,
+    "layout": [
+      {
+        "name": "H",
+        "qubits": [
+          0
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          1
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          2
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          3
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          0,
+          1
+        ]
+      },
+      {
+        "name": "S",
+        "qubits": [
+          1
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          0,
+          1
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          2,
+          3
+        ]
+      },
+      {
+        "name": "S",
+        "qubits": [
+          3
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          2,
+          3
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          1,
+          2
+        ]
+      },
+      {
+        "name": "S",
+        "qubits": [
+          2
+        ]
+      },
+      {
+        "name": "CX",
+        "qubits": [
+          1,
+          2
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          0
+        ]
+      },
+      {
+        "name": "S",
+        "qubits": [
+          0
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          0
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          1
+        ]
+      },
+      {
+        "name": "S",
+        "qubits": [
+          1
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          1
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          2
+        ]
+      },
+      {
+        "name": "S",
+        "qubits": [
+          2
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          2
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          3
+        ]
+      },
+      {
+        "name": "S",
+        "qubits": [
+          3
+        ]
+      },
+      {
+        "name": "H",
+        "qubits": [
+          3
+        ]
+      }
+    ]
   }
+}
