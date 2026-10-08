@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
@@ -11,6 +11,14 @@ import type { Gate } from '../types/game';
 import { GateElement } from './CircuitEditor/GateElement';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { GAME_CONSTANTS } from '../config/constants';
+import {
+  CutsceneModal,
+  introCutscenes,
+  levelOneClearedCutscene,
+  loseCutscene,
+  winCutscene,
+  type Cutscene,
+} from './CutsceneModal';
 
 export const MainLayout = () => {
   const { state, dispatch } = useGameState();
@@ -22,6 +30,14 @@ export const MainLayout = () => {
   const [clipboardGate, setClipboardGate] = useState<Gate | null>(null);
   const [clipboardBlock, setClipboardBlock] = useState<Gate[] | null>(null);
   const [pendingGate, setPendingGate] = useState<{ name: string; cost: number; index?: number; column?: number; qubits: number[] } | null>(null);
+  const [cutsceneQueue, setCutsceneQueue] = useState<Cutscene[]>([]);
+  const [cutsceneIndex, setCutsceneIndex] = useState(0);
+  const introShownRef = useRef(false);
+  const previousLevelRef = useRef<number | null>(null);
+  const hasQueuedLossCutscene = useRef(false);
+  const hasQueuedVictoryCutscene = useRef(false);
+
+  const activeCutscene = cutsceneQueue[cutsceneIndex] ?? null;
   const selectedGate = selectedGateIndex === null ? undefined : state.circuit.layout[selectedGateIndex];
   const circuitBlockCount = Math.max(0, state.circuitBlockCount ?? 1);
   const selectedBlock = selectedBlockIndex === null
@@ -33,6 +49,51 @@ export const MainLayout = () => {
   const clipboardBlockCost = clipboardBlock ? getCircuitCost(clipboardBlock) : 0;
   const canPasteGate = clipboardGate !== null && state.money >= clipboardCost;
   const canPasteBlock = clipboardBlock !== null && clipboardBlock.length > 0 && state.money >= clipboardBlockCost;
+
+  const queueCutscenes = useCallback((scenes: Cutscene[]) => {
+    if (!scenes.length) return;
+    setCutsceneQueue(scenes);
+    setCutsceneIndex(0);
+  }, []);
+
+  const advanceCutscene = useCallback(() => {
+    setCutsceneIndex((currentIndex) => {
+      const nextIndex = currentIndex + 1;
+      if (nextIndex >= cutsceneQueue.length) {
+        setCutsceneQueue([]);
+        return 0;
+      }
+      return nextIndex;
+    });
+  }, [cutsceneQueue.length]);
+
+  useEffect(() => {
+    if (!introShownRef.current) {
+      queueCutscenes(introCutscenes);
+      introShownRef.current = true;
+    }
+  }, [queueCutscenes]);
+
+  useEffect(() => {
+    if (previousLevelRef.current === 1 && state.levelId === 2 && !state.gameOver && !state.victory) {
+      queueCutscenes(levelOneClearedCutscene);
+    }
+    previousLevelRef.current = state.levelId;
+  }, [queueCutscenes, state.gameOver, state.levelId, state.victory]);
+
+  useEffect(() => {
+    if (state.gameOver && !hasQueuedLossCutscene.current) {
+      hasQueuedLossCutscene.current = true;
+      queueCutscenes(loseCutscene);
+    }
+  }, [queueCutscenes, state.gameOver]);
+
+  useEffect(() => {
+    if (state.victory && !hasQueuedVictoryCutscene.current) {
+      hasQueuedVictoryCutscene.current = true;
+      queueCutscenes(winCutscene);
+    }
+  }, [queueCutscenes, state.victory]);
 
   const copySelectedGate = () => {
     if (selectedGate) {
@@ -202,6 +263,10 @@ export const MainLayout = () => {
       setSelectedGateIndex(null);
     }
   };
+
+  if (activeCutscene) {
+    return <CutsceneModal cutscene={activeCutscene} onClose={advanceCutscene} />;
+  }
 
   if (state.victory) return <VictoryScreen />;
   if (state.gameOver) return <GameOverScreen />;
