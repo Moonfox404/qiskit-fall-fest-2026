@@ -13,5 +13,7 @@ export const loadLevel = async (levelId: number): Promise<Level | null> => {
 
   const module = await loader() as { default: Level };
 
+  console.log(`Loaded level ${levelId}:`, module.default);
+
   return module.default;
 };
