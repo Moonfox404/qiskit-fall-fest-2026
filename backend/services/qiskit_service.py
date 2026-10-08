@@ -16,6 +16,7 @@ from qiskit_aer.noise import (
 )
 
 from backend.models.circuit_layout import CircuitLayout
+from backend.models.gate import Gate
 
 OPTIMISATION_LEVEL = 0
 NUM_PAULI_VARIANTS = 32
@@ -35,6 +36,23 @@ def construct_circuit(
         return [_build_circuit(circuit_layout)]
 
     return [_build_circuit(circuit_layout, twirl=True) for _ in range(num_variants)]
+
+
+def invert_circuit(circuit_layout: CircuitLayout) -> CircuitLayout:
+    """
+    Return a layout for the inverse of a circuit built from the given layout.
+    """
+    circuit = construct_circuit(circuit_layout, num_variants=1)[0]
+    inverse_circuit = circuit.inverse()
+    inverse_layout = [
+        Gate(
+            name="CX" if instruction.operation.name == "cx" else instruction.operation.name.upper(),
+            qubits=[inverse_circuit.find_bit(qubit).index for qubit in instruction.qubits],
+        )
+        for instruction in inverse_circuit.data
+    ]
+
+    return CircuitLayout(num_qubits=circuit_layout.num_qubits, layout=inverse_layout)
 
 
 def _build_circuit(circuit_layout: CircuitLayout, twirl: bool = False):
