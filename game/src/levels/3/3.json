@@ -1,7 +1,8 @@
 {
-  "id": 3,
+"id": 3,
   "max_time": 60,
   "max_reward": 2500,
+  "recommended_funding": 2000,
   "circuit": {
     "num_qubits": 4,
     "layout": [
@@ -30,7 +31,7 @@
         ]
       },
       {
-        "name": "CNOT",
+        "name": "CX",
         "qubits": [
           0,
           1
@@ -43,14 +44,14 @@
         ]
       },
       {
-        "name": "CNOT",
+        "name": "CX",
         "qubits": [
           0,
           1
         ]
       },
       {
-        "name": "CNOT",
+        "name": "CX",
         "qubits": [
           2,
           3
@@ -63,14 +64,14 @@
         ]
       },
       {
-        "name": "CNOT",
+        "name": "CX",
         "qubits": [
           2,
           3
         ]
       },
       {
-        "name": "CNOT",
+        "name": "CX",
         "qubits": [
           1,
           2
@@ -83,7 +84,7 @@
         ]
       },
       {
-        "name": "CNOT",
+        "name": "CX",
         "qubits": [
           1,
           2

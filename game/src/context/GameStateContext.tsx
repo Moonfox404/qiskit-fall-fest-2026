@@ -40,6 +40,7 @@ export type GameAction =
   | { type: 'DUPLICATE_CIRCUIT'; payload?: { gates?: Gate[] } }
   | { type: 'REMOVE_CIRCUIT_BLOCK'; payload: { index: number } }| { type: 'RUN_SIMULATION'; payload: { cost: number; timeIncrement: number; result: { counts: Record<string, number>; expectation: number; state_vector: Array<{ real: number; imag: number }> } } }
   | { type: 'ADD_FUNDING'; payload: { amount: number } }
+  | { type: 'RETRY_LEVEL' }
   | { type: 'LOAD_LEVEL'; payload: Level }
   | { type: 'SET_LEVEL_LOADING'; payload: boolean }
   | { type: 'VICTORY' }
@@ -474,31 +475,31 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         money: state.money + action.payload.amount,
       };
-    case 'LOAD_LEVEL': {
-      const newTime =
-        action.payload.id === 1
-          ? GAME_CONSTANTS.STARTING_TIME
-          : state.time + GAME_CONSTANTS.TIME_PER_LEVEL_START;
+    case 'RETRY_LEVEL':
+      if (!state.currentLevel) return state;
+      return {
+        ...state,
+        circuit: createLevelCircuit(state.currentLevel.circuit),
+        circuitBlockCount: 1,
+        simulationHistory: [],
+        lastSimulation: undefined,
+      };
+    case 'SET_LEVEL_LOADING':
+      return {
+        ...state,
+        loadingLevel: action.payload,
+      };
 
+    case 'LOAD_LEVEL':
       return {
         ...state,
         levelId: action.payload.id,
         currentLevel: action.payload,
         circuit: createLevelCircuit(action.payload.circuit),
-        time: newTime,
         circuitBlockCount: 1,
         simulationHistory: [],
         lastSimulation: undefined,
-        gameOver:
-          action.payload.max_time !== undefined &&
-          newTime >= action.payload.max_time,
         loadingLevel: false,
-      };
-    }
-    case 'SET_LEVEL_LOADING':
-      return {
-        ...state,
-        loadingLevel: action.payload,
       };
 
     case 'VICTORY':
@@ -522,24 +523,30 @@ export const GameStateContext = createContext<GameContextType | undefined>(undef
 export const GameStateProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
-  // Load Level 1 when the game first starts
+  // Load the current level when the game starts or restarts.
   useEffect(() => {
+    if (state.currentLevel || state.victory || state.gameOver) return;
+
     const loadInitialLevel = async () => {
-      const level = await loadLevel(1);
+      dispatch({ type: 'SET_LEVEL_LOADING', payload: true });
+      try {
+        const level = await loadLevel(state.levelId);
 
-      if (!level) {
-        console.error('Level 1 could not be loaded.');
-        return;
+        if (!level) {
+          console.error(`Level ${state.levelId} could not be loaded.`);
+          dispatch({ type: 'SET_LEVEL_LOADING', payload: false });
+          return;
+        }
+
+        dispatch({ type: 'LOAD_LEVEL', payload: level });
+      } catch (error) {
+        console.error(`Level ${state.levelId} could not be loaded.`, error);
+        dispatch({ type: 'SET_LEVEL_LOADING', payload: false });
       }
-
-      dispatch({
-        type: 'LOAD_LEVEL',
-        payload: level,
-      });
     };
 
-    loadInitialLevel();
-  }, []);
+    void loadInitialLevel();
+  }, [state.currentLevel, state.gameOver, state.levelId, state.victory]);
 
   // Load the next level when the player completes the current level
   const goToNextLevel = async () => {
