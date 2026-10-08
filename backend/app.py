@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.circuit_layout import CircuitLayout
 from backend.models.simulation_result import SimulationResult
+from backend.models.simulation_request import SimulationRequest
 from backend.services import qiskit_service
 
 app = FastAPI()
@@ -18,20 +19,30 @@ app.add_middleware(
 
 @app.post("/simulation")
 def simulate(
-    circuit: CircuitLayout, noise: int = 0, shots: int = 1024
+    request: SimulationRequest,
+    shots: int = 1024,
 ) -> SimulationResult:
     """
     Simulate the quantum circuit and return the simulation results.
     """
 
-    qiskit_circuits = qiskit_service.construct_circuit(circuit)
+    qiskit_circuits = qiskit_service.construct_circuit(request.circuit)
+
+    # Use default noise if the level does not specify one
+    if not request.noise_model:
+        noise_model = "depolarizing_error"
+        noise_params = {"p": 0.5}
+    else:
+        noise_model = request.noise_model
+        noise_params = request.noise_params
 
     result = qiskit_service.simulate(
         qiskit_circuits,
         shots=shots,
-        error_class="depolarizing_error",
-        noise_params={"p": noise},
+        error_class=noise_model,
+        noise_params=noise_params,
     )
+
     return result
 
 

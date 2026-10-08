@@ -6,5 +6,7 @@
     "circuit": {
       "num_qubits": 3,
       "layout": []
-    }
+    },
+    "noise_model": "",
+    "noise_params": {}
   }

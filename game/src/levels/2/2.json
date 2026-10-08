@@ -8,5 +8,7 @@
       "layout": [
         { "name": "H", "qubits": [0] }
       ]
-    }
+    },  
+    "noise_model": "",
+    "noise_params": {}
   }

@@ -9,5 +9,7 @@
         { "name": "X", "qubits": [1] },
         { "name": "H", "qubits": [2] }
       ]
-    }
+    },
+    "noise_model": "",
+    "noise_params": {}
   }
