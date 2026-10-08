@@ -133,6 +133,7 @@ const calculateFit = (trials: SimulationTrial[], fitType: FitType) => {
   const steps = Math.max(100, Math.ceil((forecastEnd - minGateCount) * 8));
   return {
     equation,
+    yIntercept: evaluate(0),
     minGateCount,
     forecastEnd,
     points: Array.from({ length: steps + 1 }, (_, index) => {
@@ -214,9 +215,10 @@ export const TrialHistoryModal = ({
                 </label>
               </div>
               {fitData && (
-                <p className="mb-2 break-words font-mono text-xs text-game-text/70" aria-label="Fit equation">
-                  {fitData.equation}
-                </p>
+                <div className="mb-2 break-words font-mono text-xs text-game-text/70">
+                  <p aria-label="Fit equation">{fitData.equation}</p>
+                  <p aria-label="Y-intercept">Y-intercept: {formatNumber(fitData.yIntercept)}</p>
+                </div>
               )}
               <div className="min-h-0 flex-1">
                 <ResponsiveContainer width="100%" height="100%">
